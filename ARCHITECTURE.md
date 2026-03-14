@@ -100,3 +100,80 @@ graph TD
 | **Extractor** | Reads file content and produces a normalized text representation. Isolated as a separate component to encapsulate file-type-specific logic, making it straightforward to support additional formats in future iterations |
 | **Search Engine** | Accepts user queries, builds FTS5 queries, and returns ranked results with contextual previews |
 | **DB Manager** | Owns the SQLite connection and handles all reads and writes, isolating the rest of the system from database concerns |
+
+## 4. Classes (Level 4)
+
+This level describes the key classes within each component of the Core Library.
+
+### Crawler
+```java
+class Crawler {
+    Crawler(Path root, List<String> ignoreRules)
+    Stream<FileRecord> crawl()
+    boolean isIgnored(Path path)
+}
+```
+
+### FileRecord
+```java
+record FileRecord(
+    Path path,
+    String filename,
+    String extension,
+    long sizeBytes,
+    LocalDateTime createdAt,
+    LocalDateTime modifiedAt
+)
+```
+
+### Extractor
+```java
+class Extractor {
+    String extract(FileRecord record)       // returns full text content
+    String preview(FileRecord record)       // returns first 3 lines
+}
+```
+
+### Indexer
+```java
+class Indexer {
+    Indexer(Crawler crawler, Extractor extractor, DBManager db)
+    IndexReport run()
+}
+
+record IndexReport(
+    int totalFiles,
+    int indexed,
+    int skipped,
+    int failed,
+    Duration elapsed
+)
+```
+
+### DBManager
+```java
+class DBManager {
+    DBManager(Path dbPath)
+    void initializeSchema()
+    void upsert(FileRecord record, String content, String preview)
+    void delete(Path path)
+    List<SearchResult> search(String query)
+    void close()
+}
+```
+
+### SearchEngine
+```java
+class SearchEngine {
+    SearchEngine(DBManager db)
+    List<SearchResult> search(String query)
+}
+
+record SearchResult(
+    Path path,
+    String filename,
+    String extension,
+    String preview,
+    LocalDateTime modifiedAt
+)
+```
