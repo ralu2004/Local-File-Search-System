@@ -26,7 +26,7 @@ Performs search queries, configures runtime options, and views the results.
 
 ### External Systems
 
-- **Operaing System (Filesystem)**
+- **Operating System (Filesystem)**
 Provides access to directories, file metadata and content. The search engine relies on the OS for recusive traversal, safe handling of permissions, symbolic links and file types.
 
 - **Database Management System (DBMS)**
@@ -42,4 +42,35 @@ A lightweight, embedded relational database is used, such as SQLite, to avoid se
 - Handle errors (permissios, symlink loops, corrupted files)
 - Provide a responsive interface for indexing and searching
 
+## 2. Containers (Level 2)
+
+The system comprises four containers. 
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        User's Machine                           │
+│                                                                 │
+│  ┌─────────────────┐       ┌─────────────────┐                 │
+│  │ CLI Application │──────▶│                 │                  │
+│  │   [Java Process]│       │  Core Library   │                 │
+│  └─────────────────┘  ┌───▶│   [Java Library]│                 │
+│                        │   │                 │                  │
+│  ┌─────────────────┐   │   └────────┬────────┘                 │
+│  │ GUI Application │───┘            │ reads/writes             │
+│  │  (planned)      │                ▼                           │
+│  └─────────────────┘   ┌────────────────────────┐              │
+│                         │    SQLite Database     │              │
+│                         │      (search.db)       │              │
+│                         └────────────────────────┘              │
+│          ▲                                                      │
+│          │  uses                                                │
+│       [User]                                                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| Container | Technology | Responsibility |
+|-----------|------------|----------------|
+| **CLI Application** | Java | Thin frontend — parses commands and arguments, delegates to Core Library, displays results |
+| **GUI Application** | TBD *(planned)* | Visual frontend for search and results — design and framework TBD |
+| **Core Library** | Java | All core logic — crawling, indexing, searching, and database access |
+| **SQLite Database** | SQLite (FTS5) | Persistent storage of file metadata and full-text content |
 
