@@ -46,25 +46,21 @@ A lightweight, embedded relational database is used, such as SQLite, to avoid se
 
 The system comprises four containers. 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        User's Machine                           │
-│                                                                 │
-│  ┌─────────────────┐       ┌─────────────────┐                 │
-│  │ CLI Application │──────▶│                 │                  │
-│  │   [Java Process]│       │  Core Library   │                 │
-│  └─────────────────┘  ┌───▶│   [Java Library]│                 │
-│                        │   │                 │                  │
-│  ┌─────────────────┐   │   └────────┬────────┘                 │
-│  │ GUI Application │───┘            │ reads/writes             │
-│  │  (planned)      │                ▼                           │
-│  └─────────────────┘   ┌────────────────────────┐              │
-│                         │    SQLite Database     │              │
-│                         │      (search.db)       │              │
-│                         └────────────────────────┘              │
-│          ▲                                                      │
-│          │  uses                                                │
-│       [User]                                                    │
-└─────────────────────────────────────────────────────────────────┘
+graph TD
+    User(" User")
+
+    subgraph Machine["User's Machine"]
+        CLI["CLI Application\n[Java Process]"]
+        GUI["GUI Application\n[Java, TBD - planned]"]
+        Core["Core Library\n[Java Library]"]
+        DB[("SQLite Database\n[search.db]")]
+    end
+
+    User -->|uses| CLI
+    User -->|uses| GUI
+    CLI -->|delegates to| Core
+    GUI -->|delegates to| Core
+    Core -->|reads/writes| DB
 ```
 
 | Container | Technology | Responsibility |
