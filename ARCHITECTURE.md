@@ -45,7 +45,7 @@ A lightweight, embedded relational database is used, such as SQLite, to avoid se
 ## 2. Containers (Level 2)
 
 The system comprises four containers. 
-```
+```mermaid
 graph TD
     User(" User")
 
