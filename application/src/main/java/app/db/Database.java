@@ -1,8 +1,13 @@
 package app.db;
 
+import app.model.*;
+
 import java.io.IOException;
 import java.nio.file.*;
 import java.sql.*;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Database implements AutoCloseable {
 
@@ -35,8 +40,6 @@ public class Database implements AutoCloseable {
                         filename,
                         content,
                         preview     UNINDEXED,
-                        content='files',
-                        content_rowid='rowid'
                     );
                     """);
             stmt.execute("""
@@ -51,6 +54,87 @@ public class Database implements AutoCloseable {
                     );
                     """);
         }
+    }
+
+    public void upsert(FileRecord record, String content, String preview) throws SQLException {
+        String statement = """
+            INSERT OR REPLACE INTO files (path, filename, extension, size_bytes, created_at, modified_at, indexed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """;
+        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
+            stmt.setString(1, record.path().toString());
+            stmt.setString(2, record.filename());
+            stmt.setString(3, record.extension());
+            stmt.setLong(4, record.sizeBytes());
+            stmt.setString(5, record.createdAt().toString());
+            stmt.setString(6, record.modifiedAt().toString());
+            stmt.setString(7, LocalDateTime.now().toString());
+            stmt.executeUpdate();
+        }
+
+        statement = """
+            INSERT OR REPLACE INTO files_fts (path, filename, content, preview)
+            VALUES (?, ?, ?, ?)
+            """;
+        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
+            stmt.setString(1, record.path().toString());
+            stmt.setString(2, record.filename());
+            stmt.setString(3, content);
+            stmt.setString(4, preview);
+            stmt.executeUpdate();
+        }
+    }
+
+    public void delete(Path path) throws SQLException {
+        String statement = """
+                DELETE FROM files
+                WHERE path = ?
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
+            stmt.setString(1, path.toString());
+            stmt.executeUpdate();
+        }
+
+        statement = """
+                DELETE FROM files_fts
+                WHERE path = ?
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
+            stmt.setString(1, path.toString());
+            stmt.executeUpdate();
+        }
+    }
+
+    public List<SearchResult> search(String query) throws SQLException {
+        String statement = """
+            WITH matched AS (
+            SELECT path, filename, preview, rank
+            FROM files_fts
+            WHERE files_fts MATCH ?
+            )
+            SELECT m.path, m.filename, m.preview, f.extension, f.modified_at
+            FROM matched m
+            JOIN files f ON f.path = m.path
+            ORDER BY m.rank
+            """;
+        List<SearchResult> results = new ArrayList<>();
+        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
+            stmt.setString(1, query);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new SearchResult(
+                            Path.of(rs.getString("path")),
+                            rs.getString("filename"),
+                            rs.getString("extension"),
+                            rs.getString("preview"),
+                            LocalDateTime.parse(rs.getString("modified_at"))
+                    ));
+                }
+            }
+        }
+        return results;
     }
 
     @Override
