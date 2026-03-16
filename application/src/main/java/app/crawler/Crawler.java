@@ -1,0 +1,110 @@
+package app.crawler;
+
+import app.model.FileRecord;
+
+import java.io.IOException;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.*;
+import java.util.stream.Stream;
+
+public class Crawler {
+
+    private static final Set<String> TEXT_EXTENSIONS = Set.of(
+            "txt", "md", "java", "xml", "json", "csv", "html", "htm",
+            "css", "js", "ts", "py", "c", "cpp", "h", "hpp", "rb",
+            "yaml", "yml", "toml", "ini", "cfg", "properties", "sh",
+            "bat", "sql", "gradle", "kt", "rs", "go", "swift"
+    );
+
+    private final Path root;
+    private final List<PathMatcher> matchers;
+
+    public Crawler(Path root, List<String> ignoreRules) {
+        this.root = root;
+        this.matchers = ignoreRules.stream()
+                .map(rule -> FileSystems.getDefault().getPathMatcher("glob:" + rule))
+                .toList();
+    }
+
+    public Stream<FileRecord> crawl() {
+        Stream.Builder<FileRecord> builder = Stream.builder();
+
+        try {
+            Files.walkFileTree(root, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE,
+                    new SimpleFileVisitor<>() {
+
+                        @Override
+                        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                            if (isIgnored(dir)) return FileVisitResult.SKIP_SUBTREE;
+                            return FileVisitResult.CONTINUE;
+                        }
+
+                        @Override
+                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                            if (!isIgnored(file)) {
+                                String name = file.getFileName().toString();
+                                int dotIndex = name.lastIndexOf('.');
+                                String extension = dotIndex == -1 ? "" : name.substring(dotIndex + 1);
+
+                                LocalDateTime createdAt = attrs.creationTime()
+                                        .toInstant()
+                                        .atZone(ZoneId.systemDefault())
+                                        .toLocalDateTime();
+
+                                LocalDateTime modifiedAt = attrs.lastModifiedTime()
+                                        .toInstant()
+                                        .atZone(ZoneId.systemDefault())
+                                        .toLocalDateTime();
+
+                                builder.accept(new FileRecord(
+                                        file,
+                                        name,
+                                        extension,
+                                        attrs.size(),
+                                        createdAt,
+                                        modifiedAt
+                                ));
+                            }
+                            return FileVisitResult.CONTINUE;
+                        }
+
+                        @Override
+                        public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                            if (exc instanceof FileSystemLoopException) {
+                                System.err.println("Symlink loop detected, skipping: " + file);
+                            } else {
+                                System.err.println("Could not access file, skipping: " + file);
+                            }
+                            return FileVisitResult.CONTINUE;
+                        }
+                    });
+        } catch (IOException e) {
+            System.err.println("Error during file traversal: " + e.getMessage());
+        }
+
+        return builder.build();
+    }
+
+    private boolean isIgnored(Path path) {
+        Path fileName = path.getFileName();
+        if (fileName == null) return false;
+
+        String name = fileName.toString();
+        if (name.startsWith(".")) return true;
+
+        Path relative = root.relativize(path);
+        for (PathMatcher matcher : matchers) {
+            if (matcher.matches(relative) || matcher.matches(relative.getFileName())) return true;
+        }
+
+        if (Files.isDirectory(path)) return false;
+
+        int dotIndex = name.lastIndexOf('.');
+        if (dotIndex == -1) return true;
+        String extension = name.substring(dotIndex + 1).toLowerCase();
+        return !TEXT_EXTENSIONS.contains(extension);
+    }
+}
