@@ -3,12 +3,14 @@ package app.db;
 import app.model.*;
 import app.search.query.Query;
 
+import javax.swing.plaf.nimbus.State;
 import java.io.IOException;
 import java.nio.file.*;
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class Database implements AutoCloseable {
 
@@ -114,7 +116,7 @@ public class Database implements AutoCloseable {
             stmt.executeUpdate();
         }
     }
-    
+
     private String sanitizeQuery(String query) {
         if (query.matches(".*[.\\-+*()^\":].*")) {
             return "\"" + query.replace("\"", "\"\"") + "\"";
@@ -191,6 +193,57 @@ public class Database implements AutoCloseable {
             }
         }
         return results;
+    }
+
+    public LocalDateTime getModifiedAt(Path path) throws SQLException {
+        String statement = """
+                SELECT modified_at
+                FROM files
+                WHERE path = ?
+                """;
+        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
+            stmt.setString(1, path.toString());
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return LocalDateTime.parse(rs.getString("modified_at"));
+                }
+            }
+        }
+        return null;
+    }
+
+    public int batchDelete(Set<Path> paths) throws SQLException {
+        connection.setAutoCommit(false);
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("CREATE TEMP TABLE IF NOT EXISTS crawled_paths (path TEXT PRIMARY KEY);");
+
+            String insert = "INSERT OR IGNORE INTO crawled_paths (path) VALUES (?)";
+            try (PreparedStatement insertStmt = connection.prepareStatement(insert)) {
+                for (Path path : paths) {
+                    insertStmt.setString(1, path.toString());
+                    insertStmt.addBatch();
+                }
+                insertStmt.executeBatch();
+            }
+
+            int deleted = 0;
+            try (ResultSet rs = stmt.executeQuery(
+                    "SELECT COUNT(*) FROM files WHERE path NOT IN (SELECT path FROM crawled_paths);")) {
+                if (rs.next()) deleted = rs.getInt(1);
+            }
+
+            stmt.execute("DELETE FROM files WHERE path NOT IN (SELECT path FROM crawled_paths);");
+            stmt.execute("DELETE FROM files_fts WHERE path NOT IN (SELECT path FROM crawled_paths);");
+            stmt.execute("DROP TABLE IF EXISTS crawled_paths;");
+
+            connection.commit();
+            return deleted;
+        } catch (SQLException e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(true);
+        }
     }
 
     @Override
