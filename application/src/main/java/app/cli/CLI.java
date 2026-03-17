@@ -51,6 +51,7 @@ public class CLI implements Runnable {
                 System.out.println("-- indexed: " + report.indexed());
                 System.out.println("-- skipped: " + report.skipped());
                 System.out.println("-- failed: " + report.failed());
+                System.out.println("-- deleted: " + report.deleted());
                 System.out.println(report.elapsed().toSeconds() + " s");
             } catch (Exception e) {
                 System.err.println("Error: " + e.getMessage());
