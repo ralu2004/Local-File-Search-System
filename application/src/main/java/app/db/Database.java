@@ -26,6 +26,7 @@ public class Database implements AutoCloseable {
     public Database() throws SQLException, IOException {
         this(System.getProperty("user.dir") + "/.searchengine/index.db");
     }
+
     private void initializeSchema() throws SQLException {
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("""
@@ -143,6 +144,16 @@ public class Database implements AutoCloseable {
         return query;
     }
 
+    private SearchResult mapResult(ResultSet rs) throws SQLException {
+        return new SearchResult(
+                Path.of(rs.getString("path")),
+                rs.getString("filename"),
+                rs.getString("extension"),
+                rs.getString("preview"),
+                LocalDateTime.parse(rs.getString("modified_at"))
+        );
+    }
+
     public List<SearchResult> search(Query query) throws SQLException {
         StringBuilder sql = new StringBuilder();
         List<Object> params = new ArrayList<>();
@@ -201,13 +212,7 @@ public class Database implements AutoCloseable {
             }
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    results.add(new SearchResult(
-                            Path.of(rs.getString("path")),
-                            rs.getString("filename"),
-                            rs.getString("extension"),
-                            rs.getString("preview"),
-                            LocalDateTime.parse(rs.getString("modified_at"))
-                    ));
+                    results.add(mapResult(rs));
                 }
             }
         }
