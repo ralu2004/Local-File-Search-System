@@ -7,6 +7,7 @@ import app.indexer.IndexReport;
 import app.indexer.Indexer;
 import app.model.SearchResult;
 import app.search.SearchEngine;
+import app.search.query.QueryParser;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 
@@ -66,7 +67,7 @@ public class CLI implements Runnable {
         @Override
         public void run() {
             try (Database db = new Database()) {
-                SearchEngine engine = new SearchEngine(db);
+                SearchEngine engine = new SearchEngine(db, new QueryParser());
                 List<SearchResult> results = engine.search(query);
 
                 if (results.isEmpty()) {
