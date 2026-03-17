@@ -3,7 +3,6 @@ package app.db;
 import app.model.*;
 import app.search.query.Query;
 
-import javax.swing.plaf.nimbus.State;
 import java.io.IOException;
 import java.nio.file.*;
 import java.sql.*;
@@ -61,59 +60,77 @@ public class Database implements AutoCloseable {
     }
 
     public void upsert(FileRecord record, String content, String preview) throws SQLException {
-        String statement = """
-            INSERT OR REPLACE INTO files (path, filename, extension, size_bytes, created_at, modified_at, indexed_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """;
-        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
-            stmt.setString(1, record.path().toString());
-            stmt.setString(2, record.filename());
-            stmt.setString(3, record.extension());
-            stmt.setLong(4, record.sizeBytes());
-            stmt.setString(5, record.createdAt().toString());
-            stmt.setString(6, record.modifiedAt().toString());
-            stmt.setString(7, LocalDateTime.now().toString());
-            stmt.executeUpdate();
-        }
+        connection.setAutoCommit(false);
+        try {
+            String statement = """
+                INSERT OR REPLACE INTO files (path, filename, extension, size_bytes, created_at, modified_at, indexed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """;
+            try (PreparedStatement stmt = connection.prepareStatement(statement)) {
+                stmt.setString(1, record.path().toString());
+                stmt.setString(2, record.filename());
+                stmt.setString(3, record.extension());
+                stmt.setLong(4, record.sizeBytes());
+                stmt.setString(5, record.createdAt().toString());
+                stmt.setString(6, record.modifiedAt().toString());
+                stmt.setString(7, LocalDateTime.now().toString());
+                stmt.executeUpdate();
+            }
 
-        statement = "DELETE FROM files_fts WHERE path = ?";
-        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
-            stmt.setString(1, record.path().toString());
-            stmt.executeUpdate();
-        }
+            statement = "DELETE FROM files_fts WHERE path = ?";
+            try (PreparedStatement stmt = connection.prepareStatement(statement)) {
+                stmt.setString(1, record.path().toString());
+                stmt.executeUpdate();
+            }
 
-        statement = """
-            INSERT OR REPLACE INTO files_fts (path, filename, content, preview)
-            VALUES (?, ?, ?, ?)
-            """;
-        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
-            stmt.setString(1, record.path().toString());
-            stmt.setString(2, record.filename());
-            stmt.setString(3, content);
-            stmt.setString(4, preview);
-            stmt.executeUpdate();
+            statement = """
+                INSERT OR REPLACE INTO files_fts (path, filename, content, preview)
+                VALUES (?, ?, ?, ?)
+                """;
+            try (PreparedStatement stmt = connection.prepareStatement(statement)) {
+                stmt.setString(1, record.path().toString());
+                stmt.setString(2, record.filename());
+                stmt.setString(3, content);
+                stmt.setString(4, preview);
+                stmt.executeUpdate();
+            }
+            connection.commit();
+        } catch (SQLException e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(true);
         }
     }
 
     public void delete(Path path) throws SQLException {
-        String statement = """
+        connection.setAutoCommit(false);
+        try{
+            String statement = """
                 DELETE FROM files
                 WHERE path = ?
                 """;
 
-        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
-            stmt.setString(1, path.toString());
-            stmt.executeUpdate();
-        }
+            try (PreparedStatement stmt = connection.prepareStatement(statement)) {
+                stmt.setString(1, path.toString());
+                stmt.executeUpdate();
+            }
 
-        statement = """
+            statement = """
                 DELETE FROM files_fts
                 WHERE path = ?
                 """;
 
-        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
-            stmt.setString(1, path.toString());
-            stmt.executeUpdate();
+            try (PreparedStatement stmt = connection.prepareStatement(statement)) {
+                stmt.setString(1, path.toString());
+                stmt.executeUpdate();
+            }
+            connection.commit();
+        } catch (SQLException e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(true);
         }
     }
 
