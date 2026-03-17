@@ -7,5 +7,6 @@ public record IndexReport(
         int indexed,
         int skipped,
         int failed,
+        int deleted,
         Duration elapsed
 ) {}
