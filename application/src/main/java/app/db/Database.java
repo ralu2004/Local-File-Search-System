@@ -13,17 +13,19 @@ import java.util.Set;
 
 public class Database implements AutoCloseable {
 
-    private static final String DB_PATH = System.getProperty("user.dir") + "/.searchengine/index.db";
     private Connection connection;
 
-    public Database() throws SQLException, IOException {
-        Path path = Paths.get(DB_PATH);
+    public Database(String dbPath) throws SQLException, IOException {
+        Path path = Paths.get(dbPath);
         Files.createDirectories(path.getParent());
-        connection = DriverManager.getConnection("jdbc:sqlite:" + DB_PATH);
+        connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
         connection.setAutoCommit(true);
         initializeSchema();
     }
 
+    public Database() throws SQLException, IOException {
+        this(System.getProperty("user.dir") + "/.searchengine/index.db");
+    }
     private void initializeSchema() throws SQLException {
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("""
