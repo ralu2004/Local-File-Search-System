@@ -1,6 +1,7 @@
 package app.db;
 
 import app.model.*;
+import app.search.query.Query;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -20,7 +21,6 @@ public class Database implements AutoCloseable {
         connection = DriverManager.getConnection("jdbc:sqlite:" + DB_PATH);
         connection.setAutoCommit(true);
         initializeSchema();
-        System.out.println("Database path: " + DB_PATH);
     }
 
     private void initializeSchema() throws SQLException {
@@ -41,7 +41,7 @@ public class Database implements AutoCloseable {
                         path        UNINDEXED,
                         filename,
                         content,
-                        preview     UNINDEXED,
+                        preview     UNINDEXED
                     );
                     """);
             stmt.execute("""
@@ -114,22 +114,70 @@ public class Database implements AutoCloseable {
             stmt.executeUpdate();
         }
     }
+    
+    private String sanitizeQuery(String query) {
+        if (query.matches(".*[.\\-+*()^\":].*")) {
+            return "\"" + query.replace("\"", "\"\"") + "\"";
+        }
+        return query;
+    }
 
-    public List<SearchResult> search(String query) throws SQLException {
-        String statement = """
-            WITH matched AS (
-            SELECT path, filename, preview, rank
-            FROM files_fts
-            WHERE files_fts MATCH ?
-            )
-            SELECT m.path, m.filename, m.preview, f.extension, f.modified_at
-            FROM matched m
-            JOIN files f ON f.path = m.path
-            ORDER BY m.rank
-            """;
+    public List<SearchResult> search(Query query) throws SQLException {
+        StringBuilder sql = new StringBuilder();
+        List<Object> params = new ArrayList<>();
+
+        boolean hasFTS = query.value() != null && !query.value().isBlank();
+        boolean hasFilters = query.filters() != null && !query.filters().isEmpty();
+
+        if (hasFTS) {
+            sql.append("""
+                WITH matched AS (
+                    SELECT path, filename, preview, rank
+                    FROM files_fts
+                    WHERE files_fts MATCH ?
+                )
+                SELECT m.path, m.filename, m.preview, f.extension, f.modified_at
+                FROM matched m
+                JOIN files f ON f.path = m.path
+                """);
+            params.add(sanitizeQuery(query.value()));
+        } else {
+            sql.append("""
+                SELECT fts.path, fts.filename, fts.preview, f.extension, f.modified_at
+                FROM files f
+                JOIN files_fts fts ON fts.path = f.path
+                """);
+        }
+
+        if (hasFilters) {
+            sql.append("WHERE ");
+            List<String> conditions = new ArrayList<>();
+
+            if (query.filters().containsKey("ext")) {
+                conditions.add("f.extension = ?");
+                params.add(query.filters().get("ext"));
+            }
+            if (query.filters().containsKey("modified")) {
+                conditions.add("f.modified_at > ?");
+                params.add(query.filters().get("modified"));
+            }
+            if (query.filters().containsKey("size")) {
+                conditions.add("f.size_bytes > ?");
+                params.add(Long.parseLong(query.filters().get("size")));
+            }
+
+            sql.append(String.join(" AND ", conditions));
+        }
+
+        if (hasFTS) {
+            sql.append(" ORDER BY m.rank");
+        }
+
         List<SearchResult> results = new ArrayList<>();
-        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
-            stmt.setString(1, query);
+        try (PreparedStatement stmt = connection.prepareStatement(sql.toString())) {
+            for (int i = 0; i < params.size(); i++) {
+                stmt.setObject(i + 1, params.get(i));
+            }
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     results.add(new SearchResult(
