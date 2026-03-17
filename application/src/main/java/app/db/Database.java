@@ -18,7 +18,9 @@ public class Database implements AutoCloseable {
         Path path = Paths.get(DB_PATH);
         Files.createDirectories(path.getParent());
         connection = DriverManager.getConnection("jdbc:sqlite:" + DB_PATH);
+        connection.setAutoCommit(true);
         initializeSchema();
+        System.out.println("Database path: " + DB_PATH);
     }
 
     private void initializeSchema() throws SQLException {
@@ -69,6 +71,12 @@ public class Database implements AutoCloseable {
             stmt.setString(5, record.createdAt().toString());
             stmt.setString(6, record.modifiedAt().toString());
             stmt.setString(7, LocalDateTime.now().toString());
+            stmt.executeUpdate();
+        }
+
+        statement = "DELETE FROM files_fts WHERE path = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
+            stmt.setString(1, record.path().toString());
             stmt.executeUpdate();
         }
 
