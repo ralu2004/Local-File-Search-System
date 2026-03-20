@@ -14,6 +14,7 @@ import java.util.Set;
 public class Database implements AutoCloseable {
 
     private Connection connection;
+    private final QueryBuilder queryBuilder = new QueryBuilder();
 
     public Database(String dbPath) throws SQLException, IOException {
         Path path = Paths.get(dbPath);
@@ -137,13 +138,6 @@ public class Database implements AutoCloseable {
         }
     }
 
-    private String sanitizeQuery(String query) {
-        if (query.matches(".*[.\\-+*()^\":].*")) {
-            return "\"" + query.replace("\"", "\"\"") + "\"";
-        }
-        return query;
-    }
-
     private SearchResult mapResult(ResultSet rs) throws SQLException {
         return new SearchResult(
                 Path.of(rs.getString("path")),
@@ -155,60 +149,11 @@ public class Database implements AutoCloseable {
     }
 
     public List<SearchResult> search(Query query) throws SQLException {
-        StringBuilder sql = new StringBuilder();
-        List<Object> params = new ArrayList<>();
-
-        boolean hasFTS = query.value() != null && !query.value().isBlank();
-        boolean hasFilters = query.filters() != null && !query.filters().isEmpty();
-
-        if (hasFTS) {
-            sql.append("""
-                WITH matched AS (
-                    SELECT path, filename, preview, rank
-                    FROM files_fts
-                    WHERE files_fts MATCH ?
-                )
-                SELECT m.path, m.filename, m.preview, f.extension, f.modified_at
-                FROM matched m
-                JOIN files f ON f.path = m.path
-                """);
-            params.add(sanitizeQuery(query.value()));
-        } else {
-            sql.append("""
-                SELECT fts.path, fts.filename, fts.preview, f.extension, f.modified_at
-                FROM files f
-                JOIN files_fts fts ON fts.path = f.path
-                """);
-        }
-
-        if (hasFilters) {
-            sql.append("WHERE ");
-            List<String> conditions = new ArrayList<>();
-
-            if (query.filters().containsKey("ext")) {
-                conditions.add("f.extension = ?");
-                params.add(query.filters().get("ext"));
-            }
-            if (query.filters().containsKey("modified")) {
-                conditions.add("f.modified_at > ?");
-                params.add(query.filters().get("modified"));
-            }
-            if (query.filters().containsKey("size")) {
-                conditions.add("f.size_bytes > ?");
-                params.add(Long.parseLong(query.filters().get("size")));
-            }
-
-            sql.append(String.join(" AND ", conditions));
-        }
-
-        if (hasFTS) {
-            sql.append(" ORDER BY m.rank");
-        }
-
+        BuiltQuery builtQuery = queryBuilder.build(query);
         List<SearchResult> results = new ArrayList<>();
-        try (PreparedStatement stmt = connection.prepareStatement(sql.toString())) {
-            for (int i = 0; i < params.size(); i++) {
-                stmt.setObject(i + 1, params.get(i));
+        try (PreparedStatement stmt = connection.prepareStatement(builtQuery.sql())) {
+            for (int i = 0; i < builtQuery.params().size(); i++) {
+                stmt.setObject(i + 1, builtQuery.params().get(i));
             }
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
