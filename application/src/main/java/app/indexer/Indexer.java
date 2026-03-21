@@ -5,6 +5,7 @@ import app.extractor.Extractor;
 import app.extractor.FileTooLargeException;
 import app.model.FileRecord;
 import app.repository.FileRepository;
+import app.repository.IndexRunRepository;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
@@ -21,17 +22,26 @@ public class Indexer {
     private final Crawler crawler;
     private final Extractor extractor;
     private final FileRepository repository;
+    private final IndexRunRepository indexRunRepository;
 
-    public Indexer(FileRepository repository, Crawler crawler, Extractor extractor) {
+    public Indexer(FileRepository repository, IndexRunRepository indexRunRepository, Crawler crawler, Extractor extractor) {
         this.repository = repository;
+        this.indexRunRepository = indexRunRepository;
         this.crawler = crawler;
         this.extractor = extractor;
     }
 
     public IndexReport run() {
+        Instant start = Instant.now();
+        long runId = 0;
+        try {
+            runId = indexRunRepository.startIndexing(LocalDateTime.now());
+        } catch (SQLException e) {
+            System.err.println("Failed to start index run tracking: " + e.getMessage());
+        }
+
         int totalFiles = 0, indexed = 0, failed = 0, skipped = 0, deleted = 0;
         Set<Path> paths = new HashSet<>();
-        Instant start = Instant.now();
 
         for (FileRecord record : (Iterable<FileRecord>) crawler.crawl()::iterator) {
             totalFiles++;
@@ -51,7 +61,15 @@ public class Indexer {
         }
 
         Duration elapsed = Duration.between(start, Instant.now());
-        return new IndexReport(totalFiles, indexed, skipped, failed, deleted, elapsed);
+        IndexReport report = new IndexReport(totalFiles, indexed, skipped, failed, deleted, elapsed);
+
+        try {
+            indexRunRepository.endIndexing(runId, report);
+        } catch (SQLException e) {
+            System.err.println("Failed to finalize index run tracking: " + e.getMessage());
+        }
+
+        return report;
     }
 
     private IndexResult indexFile(FileRecord record) {
