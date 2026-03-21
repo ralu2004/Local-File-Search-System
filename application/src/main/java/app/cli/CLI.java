@@ -41,7 +41,7 @@ public class CLI implements Runnable {
             try (Database db = new Database()) {
                 Crawler crawler = new Crawler(root, ignoreRules);
                 Extractor extractor = new Extractor();
-                Indexer indexer = new Indexer(db, crawler, extractor);
+                Indexer indexer = new Indexer(db, db, crawler, extractor);
 
                 System.out.println("Indexing " + root + "...");
                 IndexReport report = indexer.run();
