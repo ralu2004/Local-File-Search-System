@@ -1,18 +1,21 @@
 package app.db;
 
+import app.indexer.IndexReport;
 import app.model.*;
 import app.repository.FileRepository;
+import app.repository.IndexRunRepository;
 import app.search.query.Query;
 
 import java.io.IOException;
 import java.nio.file.*;
 import java.sql.*;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-public class Database implements FileRepository, AutoCloseable {
+public class Database implements FileRepository, IndexRunRepository, AutoCloseable {
 
     private final Connection connection;
     private final QueryBuilder queryBuilder;
@@ -63,13 +66,15 @@ public class Database implements FileRepository, AutoCloseable {
                     """);
             stmt.execute("""
                     CREATE TABLE IF NOT EXISTS index_runs (
-                        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                        started_at  TEXT,
-                        finished_at TEXT,
-                        total_files INTEGER,
-                        indexed     INTEGER,
-                        skipped     INTEGER,
-                        failed      INTEGER
+                        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                        started_at      TEXT,
+                        finished_at     TEXT,
+                        total_files     INTEGER,
+                        indexed         INTEGER,
+                        skipped         INTEGER,
+                        failed          INTEGER,
+                        deleted         INTEGER,
+                        elapsed_seconds INTEGER
                     );
                     """);
         }
@@ -179,12 +184,6 @@ public class Database implements FileRepository, AutoCloseable {
         }
     }
 
-    public void optimizeFts() throws SQLException {
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute("INSERT INTO files_fts(files_fts) VALUES('optimize');");
-        }
-    }
-
     @Override
     public List<SearchResult> search(Query query) throws SQLException {
         BuiltQuery builtQuery = queryBuilder.build(query);
@@ -211,6 +210,58 @@ public class Database implements FileRepository, AutoCloseable {
     @Override
     public List<FileRecord> getByExtension(String extension) throws SQLException {
         return queryFiles("SELECT * FROM files WHERE extension = ?", extension);
+    }
+
+    @Override
+    public long startIndexing(LocalDateTime startedAt) throws SQLException {
+        String statement = "INSERT INTO index_runs (started_at) VALUES (?)";
+        try (PreparedStatement stmt = connection.prepareStatement(statement, Statement.RETURN_GENERATED_KEYS)) {
+            stmt.setString(1, startedAt.toString());
+            stmt.executeUpdate();
+            try (ResultSet keys = stmt.getGeneratedKeys()) {
+                if (keys.next()) return keys.getLong(1);
+            }
+        }
+        return 0;
+    }
+
+    @Override
+    public void endIndexing(long runId, IndexReport report) throws SQLException {
+        String statement = """
+                UPDATE index_runs
+                SET finished_at=?, total_files=?, indexed=?, skipped=?, failed=?, deleted=?, elapsed_seconds=?
+                WHERE id=?
+                """;
+        connection.setAutoCommit(false);
+        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
+            stmt.setString(1, LocalDateTime.now().toString());
+            stmt.setInt(2, report.totalFiles());
+            stmt.setInt(3, report.indexed());
+            stmt.setInt(4, report.skipped());
+            stmt.setInt(5, report.failed());
+            stmt.setInt(6, report.deleted());
+            stmt.setLong(7, report.elapsed().toSeconds());
+            stmt.setLong(8, runId);
+            stmt.executeUpdate();
+            connection.commit();
+        } catch (SQLException e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(true);
+        }
+    }
+
+    @Override
+    public List<IndexRun> getHistory() throws SQLException {
+        return queryIndexRuns("SELECT * FROM index_runs ORDER BY started_at DESC");
+    }
+
+    @Override
+    public void optimizeFts() throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("INSERT INTO files_fts(files_fts) VALUES('optimize');");
+        }
     }
 
     private List<FileRecord> queryFiles(String sql, Object... params) throws SQLException {
@@ -243,6 +294,21 @@ public class Database implements FileRepository, AutoCloseable {
         return results;
     }
 
+    private List<IndexRun> queryIndexRuns(String sql, Object... params) throws SQLException {
+        List<IndexRun> runs = new ArrayList<>();
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            for (int i = 0; i < params.length; i++) {
+                stmt.setObject(i + 1, params[i]);
+            }
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    runs.add(mapIndexRun(rs));
+                }
+            }
+        }
+        return runs;
+    }
+
     private FileRecord mapFileRecord(ResultSet rs) throws SQLException {
         return new FileRecord(
                 Path.of(rs.getString("path")),
@@ -261,6 +327,25 @@ public class Database implements FileRepository, AutoCloseable {
                 rs.getString("extension"),
                 rs.getString("preview"),
                 LocalDateTime.parse(rs.getString("modified_at"))
+        );
+    }
+
+    private IndexRun mapIndexRun(ResultSet rs) throws SQLException {
+        LocalDateTime startedAt = LocalDateTime.parse(rs.getString("started_at"));
+        String finishedAtStr = rs.getString("finished_at");
+        LocalDateTime finishedAt = finishedAtStr != null ? LocalDateTime.parse(finishedAtStr) : null;
+        Duration elapsed = Duration.ofSeconds(rs.getLong("elapsed_seconds"));
+
+        return new IndexRun(
+                rs.getLong("id"),
+                startedAt,
+                finishedAt,
+                rs.getInt("total_files"),
+                rs.getInt("indexed"),
+                rs.getInt("skipped"),
+                rs.getInt("failed"),
+                rs.getInt("deleted"),
+                elapsed
         );
     }
 
