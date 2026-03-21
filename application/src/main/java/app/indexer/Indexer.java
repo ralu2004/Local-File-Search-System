@@ -31,7 +31,7 @@ public class Indexer {
         int totalFiles = 0, indexed = 0, failed = 0, skipped = 0, deleted = 0;
         Set<Path> paths = new HashSet<>();
         Instant start = Instant.now();
-        
+
         for (FileRecord record : (Iterable<FileRecord>) crawler.crawl()::iterator) {
             totalFiles++;
             paths.add(record.path());
