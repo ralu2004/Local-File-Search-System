@@ -25,6 +25,13 @@ public class Crawler {
     }
 
     public Stream<FileRecord> crawl() {
+        if (!Files.exists(root)) {
+            throw new IllegalArgumentException("Root directory does not exist: " + root);
+        }
+        if (!Files.isDirectory(root)) {
+            throw new IllegalArgumentException("Root path is not a directory: " + root);
+        }
+        
         Stream.Builder<FileRecord> builder = Stream.builder();
 
         try {
