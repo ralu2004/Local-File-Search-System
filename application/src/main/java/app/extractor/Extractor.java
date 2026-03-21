@@ -3,6 +3,8 @@ package app.extractor;
 import app.model.FileRecord;
 
 import java.io.*;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,8 +40,13 @@ public class Extractor {
         }
 
         List<String> lines = new ArrayList<>();
+
+        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPLACE)
+                .onUnmappableCharacter(CodingErrorAction.REPLACE);
+
         try (BufferedReader br = new BufferedReader(new InputStreamReader(
-                new FileInputStream(record.path().toFile()), StandardCharsets.UTF_8))) {
+                new FileInputStream(record.path().toFile()), decoder))) {
             String line;
             while ((line = br.readLine()) != null && lines.size() < maxLines) {
                 lines.add(line);
