@@ -13,6 +13,10 @@ public class SearchEngine {
     private final FileRepository repository;
     private final QueryParser parser;
 
+    public SearchEngine(FileRepository repository) {
+        this(repository, new QueryParser());
+    }
+
     public SearchEngine(FileRepository repository, QueryParser parser) {
         this.repository = repository;
         this.parser = parser;

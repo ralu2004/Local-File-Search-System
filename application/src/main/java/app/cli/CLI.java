@@ -68,7 +68,7 @@ public class CLI implements Runnable {
         @Override
         public void run() {
             try (Database db = new Database()) {
-                SearchEngine engine = new SearchEngine(db, new QueryParser());
+                SearchEngine engine = new SearchEngine(db);
                 List<SearchResult> results = engine.search(query);
 
                 if (results.isEmpty()) {
