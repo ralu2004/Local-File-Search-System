@@ -2,6 +2,7 @@ package app.indexer;
 
 import app.crawler.Crawler;
 import app.extractor.Extractor;
+import app.extractor.FileTooLargeException;
 import app.model.FileRecord;
 import app.repository.FileRepository;
 
@@ -63,6 +64,9 @@ public class Indexer {
             String preview = extractor.preview(record);
             repository.upsert(record, content, preview);
             return IndexResult.INDEXED;
+        } catch (FileTooLargeException e) {
+            System.err.println(e.getMessage());
+            return IndexResult.SKIPPED;
         } catch (SQLException e) {
             System.err.println("Failed to index file: " + record.path() + " — " + e.getMessage());
             return IndexResult.FAILED;

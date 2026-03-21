@@ -9,17 +9,34 @@ import java.util.List;
 
 public class Extractor {
 
-    private static final int PREVIEW_LINES = 3;
+    private static final int DEFAULT_PREVIEW_LINES = 3;
+    private static final long DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+    private final int previewLines;
+    private final long maxFileSize;
+
+    public Extractor() {
+        this(DEFAULT_PREVIEW_LINES, DEFAULT_MAX_FILE_SIZE);
+    }
+
+    public Extractor(int previewLines, long maxFileSize) {
+        this.previewLines = previewLines;
+        this.maxFileSize = maxFileSize;
+    }
 
     public String extract(FileRecord record) {
         return String.join(System.lineSeparator(), readLines(record, Integer.MAX_VALUE));
     }
 
     public String preview(FileRecord record) {
-        return String.join(System.lineSeparator(), readLines(record, PREVIEW_LINES));
+        return String.join(System.lineSeparator(), readLines(record, previewLines));
     }
 
     private List<String> readLines(FileRecord record, int maxLines) {
+        if (isTooLarge(record)) {
+            throw new FileTooLargeException(record.path(), record.sizeBytes(), maxFileSize);
+        }
+
         List<String> lines = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new InputStreamReader(
                 new FileInputStream(record.path().toFile()), StandardCharsets.UTF_8))) {
@@ -31,5 +48,9 @@ public class Extractor {
             System.err.println("Could not read file: " + record.path());
         }
         return lines;
+    }
+
+    private boolean isTooLarge(FileRecord record) {
+        return record.sizeBytes() > maxFileSize;
     }
 }
