@@ -1,9 +1,9 @@
 package app.indexer;
 
 import app.crawler.Crawler;
-import app.db.Database;
 import app.extractor.Extractor;
 import app.model.FileRecord;
+import app.repository.FileRepository;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
@@ -17,10 +17,10 @@ public class Indexer {
 
     private final Crawler crawler;
     private final Extractor extractor;
-    private final Database db;
+    private final FileRepository repository;
 
-    public Indexer(Database db, Crawler crawler, Extractor extractor) {
-        this.db = db;
+    public Indexer(FileRepository repository, Crawler crawler, Extractor extractor) {
+        this.repository = repository;
         this.crawler = crawler;
         this.extractor = extractor;
     }
@@ -39,7 +39,7 @@ public class Indexer {
             totalFiles++;
             paths.add(record.path());
             try {
-                LocalDateTime storedModifiedAt = db.getModifiedAt(record.path());
+                LocalDateTime storedModifiedAt = repository.getModifiedAt(record.path());
                 if (storedModifiedAt != null && storedModifiedAt.equals(record.modifiedAt())) {
                     skipped++;
                     continue;
@@ -47,7 +47,7 @@ public class Indexer {
 
                 String content = extractor.extract(record);
                 String preview = extractor.preview(record);
-                db.upsert(record, content, preview);
+                repository.upsert(record, content, preview);
                 indexed++;
             } catch (SQLException e) {
                 failed++;
@@ -56,10 +56,11 @@ public class Indexer {
         }
 
         try {
-            deleted = db.batchDelete(paths);
+            deleted = repository.batchDelete(paths);
         } catch (SQLException e) {
             System.err.println("Something went wrong while deleting files: " + e.getMessage());
         }
+
         Duration elapsed = Duration.between(start, Instant.now());
         return new IndexReport(totalFiles, indexed, skipped, failed, deleted, elapsed);
     }
