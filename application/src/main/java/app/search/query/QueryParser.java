@@ -11,7 +11,7 @@ public class QueryParser {
             Pattern.compile("([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)");
 
     private static final Pattern FILENAME_PATTERN =
-            Pattern.compile("^[a-zA-Z0-9._-]+\\.[a-zA-Z0-9]+$");
+            Pattern.compile("^[a-zA-Z0-9._-]+\\.[a-zA-Z0-9]{2,}$");
 
     public Query parse(String input) {
         if (input == null || input.isBlank()) {
@@ -26,7 +26,7 @@ public class QueryParser {
             filters.put(metaMatcher.group(1), metaMatcher.group(2));
         }
 
-        String remaining = METADATA_PATTERN.matcher(input)
+        String remaining = metaMatcher.reset(input)
                 .replaceAll("")
                 .replaceAll("\\s+", " ")
                 .trim();
