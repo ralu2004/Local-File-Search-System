@@ -23,6 +23,10 @@ public class Database implements FileRepository, AutoCloseable {
         connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
         connection.setAutoCommit(true);
         this.queryBuilder = queryBuilder;
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("PRAGMA journal_mode = WAL;");
+            stmt.execute("PRAGMA busy_timeout = 5000;");
+        }
         initializeSchema();
     }
 
