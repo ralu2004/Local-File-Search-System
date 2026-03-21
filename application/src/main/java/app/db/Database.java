@@ -47,6 +47,8 @@ public class Database implements FileRepository, AutoCloseable {
                         indexed_at  TEXT
                     );
                     """);
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_files_extension ON files(extension);");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_files_modified_at ON files(modified_at);");
             stmt.execute("""
                     CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
                         path        UNINDEXED,
