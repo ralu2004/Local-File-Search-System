@@ -24,6 +24,17 @@ public class Crawler {
                 .toList();
     }
 
+    private FileRecord buildRecord(Path file, BasicFileAttributes attrs) {
+        String name = file.getFileName().toString();
+        int dotIndex = name.lastIndexOf('.');
+        String extension = dotIndex == -1 ? "" : name.substring(dotIndex + 1);
+        LocalDateTime createdAt = attrs.creationTime()
+                .toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        LocalDateTime modifiedAt = attrs.lastModifiedTime()
+                .toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        return new FileRecord(file, name, extension, attrs.size(), createdAt, modifiedAt);
+    }
+
     public Stream<FileRecord> crawl() {
         Stream.Builder<FileRecord> builder = Stream.builder();
 
@@ -40,28 +51,7 @@ public class Crawler {
                         @Override
                         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                             if (!isIgnored(file)) {
-                                String name = file.getFileName().toString();
-                                int dotIndex = name.lastIndexOf('.');
-                                String extension = dotIndex == -1 ? "" : name.substring(dotIndex + 1);
-
-                                LocalDateTime createdAt = attrs.creationTime()
-                                        .toInstant()
-                                        .atZone(ZoneId.systemDefault())
-                                        .toLocalDateTime();
-
-                                LocalDateTime modifiedAt = attrs.lastModifiedTime()
-                                        .toInstant()
-                                        .atZone(ZoneId.systemDefault())
-                                        .toLocalDateTime();
-
-                                builder.accept(new FileRecord(
-                                        file,
-                                        name,
-                                        extension,
-                                        attrs.size(),
-                                        createdAt,
-                                        modifiedAt
-                                ));
+                                builder.accept(buildRecord(file, attrs));
                             }
                             return FileVisitResult.CONTINUE;
                         }
@@ -77,7 +67,7 @@ public class Crawler {
                         }
                     });
         } catch (IOException e) {
-            System.err.println("Error during file traversal: " + e.getMessage());
+            throw new IllegalStateException("Failed to crawl directory: " + root, e);
         }
 
         return builder.build();
