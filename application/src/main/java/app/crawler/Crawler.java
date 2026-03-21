@@ -10,14 +10,9 @@ import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Stream;
 
-public class Crawler {
+import app.util.FileTypes;
 
-    private static final Set<String> TEXT_EXTENSIONS = Set.of(
-            "txt", "md", "java", "xml", "json", "csv", "html", "htm",
-            "css", "js", "ts", "py", "c", "cpp", "h", "hpp", "rb",
-            "yaml", "yml", "toml", "ini", "cfg", "properties", "sh",
-            "bat", "sql", "gradle", "kt", "rs", "go", "swift"
-    );
+public class Crawler {
 
     private final Path root;
     private final List<PathMatcher> matchers;
@@ -105,6 +100,6 @@ public class Crawler {
         int dotIndex = name.lastIndexOf('.');
         if (dotIndex == -1) return true;
         String extension = name.substring(dotIndex + 1).toLowerCase();
-        return !TEXT_EXTENSIONS.contains(extension);
+        return !FileTypes.TEXT_EXTENSIONS.contains(extension);
     }
 }
