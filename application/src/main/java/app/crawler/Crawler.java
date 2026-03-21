@@ -31,7 +31,7 @@ public class Crawler {
         if (!Files.isDirectory(root)) {
             throw new IllegalArgumentException("Root path is not a directory: " + root);
         }
-        
+
         Stream.Builder<FileRecord> builder = Stream.builder();
 
         try {
