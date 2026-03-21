@@ -19,4 +19,5 @@ public interface FileRepository {
     FileRecord getByPath(Path path) throws SQLException;
     List<FileRecord> getAll() throws SQLException;
     List<FileRecord> getByExtension(String extension) throws SQLException;
+    void optimizeFts() throws SQLException;
 }

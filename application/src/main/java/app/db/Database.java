@@ -175,6 +175,12 @@ public class Database implements FileRepository, AutoCloseable {
         }
     }
 
+    public void optimizeFts() throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("INSERT INTO files_fts(files_fts) VALUES('optimize');");
+        }
+    }
+
     @Override
     public List<SearchResult> search(Query query) throws SQLException {
         BuiltQuery builtQuery = queryBuilder.build(query);

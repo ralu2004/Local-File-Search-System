@@ -44,6 +44,7 @@ public class Indexer {
 
         try {
             deleted = repository.batchDelete(paths);
+            repository.optimizeFts();
         } catch (SQLException e) {
             System.err.println("Something went wrong while deleting files: " + e.getMessage());
         }
