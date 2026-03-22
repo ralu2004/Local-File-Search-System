@@ -12,20 +12,23 @@ public class SearchEngine {
 
     private final FileRepository repository;
     private final QueryParser parser;
+    private static final int DEFAULT_LIMIT = 50;
+    private final int limit;
 
     public SearchEngine(FileRepository repository) {
-        this(repository, new QueryParser());
+        this(repository, new QueryParser(), DEFAULT_LIMIT);
     }
 
-    public SearchEngine(FileRepository repository, QueryParser parser) {
+    public SearchEngine(FileRepository repository, QueryParser parser, int limit) {
         this.repository = repository;
         this.parser = parser;
+        this.limit = limit;
     }
 
     public List<SearchResult> search(String input) {
         try {
             Query query = parser.parse(input);
-            return repository.search(query);
+            return repository.search(query, limit);
         } catch (IllegalArgumentException e) {
             System.err.println("Invalid query: " + e.getMessage());
             return List.of();

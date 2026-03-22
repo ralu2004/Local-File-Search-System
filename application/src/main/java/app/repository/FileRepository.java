@@ -14,7 +14,7 @@ public interface FileRepository {
     void upsert(FileRecord record, String content, String preview) throws SQLException;
     void delete(Path path) throws SQLException;
     int batchDelete(Set<Path> paths) throws SQLException;
-    List<SearchResult> search(Query query) throws SQLException;
+    List<SearchResult> search(Query query, int limit) throws SQLException;
     LocalDateTime getModifiedAt(Path path) throws SQLException;
     FileRecord getByPath(Path path) throws SQLException;
     List<FileRecord> getAll() throws SQLException;

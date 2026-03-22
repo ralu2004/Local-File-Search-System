@@ -185,8 +185,8 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
     }
 
     @Override
-    public List<SearchResult> search(Query query) throws SQLException {
-        BuiltQuery builtQuery = queryBuilder.build(query);
+    public List<SearchResult> search(Query query, int limit) throws SQLException {
+        BuiltQuery builtQuery = queryBuilder.build(query, limit);
         return queryResults(builtQuery.sql(), builtQuery.params());
     }
 

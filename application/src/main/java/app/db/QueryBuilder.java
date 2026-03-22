@@ -8,7 +8,7 @@ import java.util.Map;
 
 class QueryBuilder {
 
-    BuiltQuery build(Query query) {
+    BuiltQuery build(Query query, int limit) {
         StringBuilder sql = new StringBuilder();
         List<Object> params = new ArrayList<>();
 
@@ -43,6 +43,8 @@ class QueryBuilder {
             sql.append(" ORDER BY m.rank");
         }
 
+        sql.append(" LIMIT ?");
+        params.add(limit);
         return new BuiltQuery(sql.toString(), params);
     }
 
