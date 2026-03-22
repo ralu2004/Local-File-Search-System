@@ -51,6 +51,9 @@ public class Indexer {
                 case SKIPPED -> skipped++;
                 case FAILED  -> failed++;
             }
+            if (totalFiles % 100 == 0) {
+                System.out.println("Progress: " + totalFiles + " files processed...");
+            }
         }
 
         try {
