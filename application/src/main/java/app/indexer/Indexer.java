@@ -3,6 +3,7 @@ package app.indexer;
 import app.crawler.Crawler;
 import app.extractor.Extractor;
 import app.extractor.FileTooLargeException;
+import app.model.ExtractedRecord;
 import app.model.FileRecord;
 import app.repository.FileRepository;
 import app.repository.IndexRunRepository;
@@ -12,6 +13,8 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,6 +25,7 @@ public class Indexer {
 
     private static final int DEFAULT_THREAD_COUNT = Runtime.getRuntime().availableProcessors();
     private static final int WRITE_QUEUE_CAPACITY = 1000;
+    private static final int BATCH_SIZE = 500;
 
     private final Crawler crawler;
     private final Extractor extractor;
@@ -62,23 +66,29 @@ public class Indexer {
         BlockingQueue<ExtractedRecord> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_CAPACITY);
         AtomicBoolean extractionDone = new AtomicBoolean(false);
 
+        // single writer thread — batches writes for performance
         Thread writerThread = Thread.ofVirtual().start(() -> {
+            List<ExtractedRecord> batch = new ArrayList<>(BATCH_SIZE);
             while (!extractionDone.get() || !writeQueue.isEmpty()) {
                 try {
                     ExtractedRecord extracted = writeQueue.poll(100, TimeUnit.MILLISECONDS);
-                    if (extracted == null) continue;
-                    repository.upsert(extracted.record(), extracted.content(), extracted.preview());
-                    indexed.incrementAndGet();
-                } catch (SQLException e) {
-                    failed.incrementAndGet();
-                    System.err.println("Failed to write: " + e.getMessage());
+                    if (extracted == null) {
+                        if (!batch.isEmpty()) flushBatch(batch, indexed, failed);
+                        continue;
+                    }
+                    batch.add(extracted);
+                    if (batch.size() >= BATCH_SIZE) {
+                        flushBatch(batch, indexed, failed);
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 }
             }
+            if (!batch.isEmpty()) flushBatch(batch, indexed, failed);
         });
 
+        // parallel extraction
         try (ForkJoinPool pool = new ForkJoinPool(threadCount)) {
             pool.submit(() ->
                     StreamSupport.stream(
@@ -141,5 +151,16 @@ public class Indexer {
         }
 
         return report;
+    }
+
+    private void flushBatch(List<ExtractedRecord> batch, AtomicInteger indexed, AtomicInteger failed) {
+        try {
+            repository.batchUpsert(batch);
+            indexed.addAndGet(batch.size());
+        } catch (SQLException e) {
+            failed.addAndGet(batch.size());
+            System.err.println("Failed to write batch: " + e.getMessage());
+        }
+        batch.clear();
     }
 }

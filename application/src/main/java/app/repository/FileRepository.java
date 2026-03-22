@@ -1,5 +1,6 @@
 package app.repository;
 
+import app.model.ExtractedRecord;
 import app.model.FileRecord;
 import app.model.SearchResult;
 import app.search.query.Query;
@@ -12,6 +13,7 @@ import java.util.Set;
 
 public interface FileRepository {
     void upsert(FileRecord record, String content, String preview) throws SQLException;
+    void batchUpsert(List<ExtractedRecord> records) throws SQLException;
     void delete(Path path) throws SQLException;
     int batchDelete(Set<Path> paths) throws SQLException;
     List<SearchResult> search(Query query, int limit) throws SQLException;

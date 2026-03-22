@@ -133,6 +133,59 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
     }
 
     @Override
+    public void batchUpsert(List<ExtractedRecord> records) throws SQLException {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                String filesStmt = """
+                        INSERT OR REPLACE INTO files (path, filename, extension, size_bytes, created_at, modified_at, indexed_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """;
+                String deleteFts = "DELETE FROM files_fts WHERE path = ?";
+                String ftsStmt = """
+                        INSERT INTO files_fts (path, filename, content, preview)
+                        VALUES (?, ?, ?, ?)
+                        """;
+
+                try (PreparedStatement fs = conn.prepareStatement(filesStmt);
+                     PreparedStatement df = conn.prepareStatement(deleteFts);
+                     PreparedStatement fts = conn.prepareStatement(ftsStmt)) {
+
+                    for (ExtractedRecord r : records) {
+                        fs.setString(1, r.record().path().toString());
+                        fs.setString(2, r.record().filename());
+                        fs.setString(3, r.record().extension());
+                        fs.setLong(4, r.record().sizeBytes());
+                        fs.setString(5, r.record().createdAt().toString());
+                        fs.setString(6, r.record().modifiedAt().toString());
+                        fs.setString(7, LocalDateTime.now().toString());
+                        fs.addBatch();
+
+                        df.setString(1, r.record().path().toString());
+                        df.addBatch();
+
+                        fts.setString(1, r.record().path().toString());
+                        fts.setString(2, r.record().filename());
+                        fts.setString(3, r.content());
+                        fts.setString(4, r.preview());
+                        fts.addBatch();
+                    }
+
+                    fs.executeBatch();
+                    df.executeBatch();
+                    fts.executeBatch();
+                }
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
+    @Override
     public void delete(Path path) throws SQLException {
         try (Connection conn = dataSource.getConnection()) {
             conn.setAutoCommit(false);
