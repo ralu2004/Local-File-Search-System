@@ -182,11 +182,29 @@ classDiagram
 ### Model
 
 ```java
-record FileRecord(Path path, String filename, String extension, long sizeBytes, LocalDateTime createdAt, LocalDateTime modifiedAt)
-record SearchResult(Path path, String filename, String extension, String preview, LocalDateTime modifiedAt)
+record FileRecord(
+    Path path, String filename, String extension,
+    long sizeBytes, LocalDateTime createdAt, LocalDateTime modifiedAt
+)
+
+record SearchResult(
+    Path path, String filename, String extension,
+    String preview, LocalDateTime modifiedAt
+)
+
 record ExtractedRecord(FileRecord record, String content, String preview)
-record IndexRun(long id, LocalDateTime startedAt, LocalDateTime finishedAt, int totalFiles, int indexed, int skipped, int failed, int deleted, Duration elapsed)
-record IndexReport(int totalFiles, int indexed, int skipped, int failed, int deleted, Duration elapsed)
+
+record IndexReport(
+    int totalFiles, int indexed, int skipped,
+    int failed, int deleted, Duration elapsed
+)
+
+record IndexRun(
+    long id, LocalDateTime startedAt, LocalDateTime finishedAt,
+    int totalFiles, int indexed, int skipped,
+    int failed, int deleted, Duration elapsed
+)
+
 enum QueryType { FULLTEXT, FILENAME, METADATA, MIXED }
 ```
 
