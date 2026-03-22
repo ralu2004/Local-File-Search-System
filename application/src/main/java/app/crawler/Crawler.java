@@ -17,9 +17,23 @@ public class Crawler {
     private final Path root;
     private final List<PathMatcher> matchers;
 
+    private static final List<String> DEFAULT_IGNORE_RULES = List.of(
+            "node_modules",
+            "target",
+            "build",
+            "dist",
+            ".git",
+            ".idea",
+            "__pycache__",
+            "*.min.js",
+            "*.bundle.js"
+    );
+
     public Crawler(Path root, List<String> ignoreRules) {
         this.root = root;
-        this.matchers = ignoreRules.stream()
+        List<String> allRules = new ArrayList<>(DEFAULT_IGNORE_RULES);
+        allRules.addAll(ignoreRules);
+        this.matchers = allRules.stream()
                 .map(rule -> FileSystems.getDefault().getPathMatcher("glob:" + rule))
                 .toList();
     }
