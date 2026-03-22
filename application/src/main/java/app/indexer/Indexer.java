@@ -13,16 +13,15 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.StreamSupport;
 
 public class Indexer {
 
-    private enum IndexResult { INDEXED, SKIPPED, FAILED }
-
     private static final int DEFAULT_THREAD_COUNT = Runtime.getRuntime().availableProcessors();
+    private static final int WRITE_QUEUE_CAPACITY = 1000;
 
     private final Crawler crawler;
     private final Extractor extractor;
@@ -60,25 +59,66 @@ public class Indexer {
         AtomicInteger failed = new AtomicInteger();
         Set<Path> paths = ConcurrentHashMap.newKeySet();
 
-        try (ForkJoinPool pool = new ForkJoinPool(threadCount);) {
+        BlockingQueue<ExtractedRecord> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_CAPACITY);
+        AtomicBoolean extractionDone = new AtomicBoolean(false);
+
+        Thread writerThread = Thread.ofVirtual().start(() -> {
+            while (!extractionDone.get() || !writeQueue.isEmpty()) {
+                try {
+                    ExtractedRecord extracted = writeQueue.poll(100, TimeUnit.MILLISECONDS);
+                    if (extracted == null) continue;
+                    repository.upsert(extracted.record(), extracted.content(), extracted.preview());
+                    indexed.incrementAndGet();
+                } catch (SQLException e) {
+                    failed.incrementAndGet();
+                    System.err.println("Failed to write: " + e.getMessage());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        });
+
+        try (ForkJoinPool pool = new ForkJoinPool(threadCount)) {
             pool.submit(() ->
                     StreamSupport.stream(
                                     ((Iterable<FileRecord>) crawler.crawl()::iterator).spliterator(), true)
                             .forEach(record -> {
                                 paths.add(record.path());
-                                switch (indexFile(record)) {
-                                    case INDEXED -> indexed.incrementAndGet();
-                                    case SKIPPED -> skipped.incrementAndGet();
-                                    case FAILED  -> failed.incrementAndGet();
-                                }
                                 int total = totalFiles.incrementAndGet();
                                 if (total % 100 == 0) {
                                     System.out.println("Progress: " + total + " files processed...");
+                                }
+                                try {
+                                    LocalDateTime storedModifiedAt = repository.getModifiedAt(record.path());
+                                    if (storedModifiedAt != null && storedModifiedAt.equals(record.modifiedAt())) {
+                                        skipped.incrementAndGet();
+                                        return;
+                                    }
+                                    String content = extractor.extract(record);
+                                    String preview = extractor.preview(record);
+                                    writeQueue.put(new ExtractedRecord(record, content, preview));
+                                } catch (FileTooLargeException e) {
+                                    skipped.incrementAndGet();
+                                    System.err.println(e.getMessage());
+                                } catch (SQLException e) {
+                                    failed.incrementAndGet();
+                                    System.err.println("Failed to read: " + record.path() + " — " + e.getMessage());
+                                } catch (InterruptedException e) {
+                                    Thread.currentThread().interrupt();
                                 }
                             })
             ).get();
         } catch (Exception e) {
             System.err.println("Error during parallel indexing: " + e.getMessage());
+        } finally {
+            extractionDone.set(true);
+        }
+
+        try {
+            writerThread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
 
         int deleted = 0;
@@ -101,24 +141,5 @@ public class Indexer {
         }
 
         return report;
-    }
-
-    private IndexResult indexFile(FileRecord record) {
-        try {
-            LocalDateTime storedModifiedAt = repository.getModifiedAt(record.path());
-            if (storedModifiedAt != null && storedModifiedAt.equals(record.modifiedAt())) {
-                return IndexResult.SKIPPED;
-            }
-            String content = extractor.extract(record);
-            String preview = extractor.preview(record);
-            repository.upsert(record, content, preview);
-            return IndexResult.INDEXED;
-        } catch (FileTooLargeException e) {
-            System.err.println(e.getMessage());
-            return IndexResult.SKIPPED;
-        } catch (SQLException e) {
-            System.err.println("Failed to index file: " + record.path() + " — " + e.getMessage());
-            return IndexResult.FAILED;
-        }
     }
 }
