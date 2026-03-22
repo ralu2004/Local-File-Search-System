@@ -181,34 +181,14 @@ classDiagram
 
 ### Model
 
-```java
-record FileRecord(
-    Path path, String filename, String extension,
-    long sizeBytes, LocalDateTime createdAt, LocalDateTime modifiedAt
-)
-
-record SearchResult(
-    Path path, String filename, String extension,
-    String preview, LocalDateTime modifiedAt
-)
-
-record ExtractedRecord(FileRecord record, String content, String preview)
-
-record IndexReport(
-    int totalFiles, int indexed, int skipped,
-    int failed, int deleted, Duration elapsed
-)
-
-record IndexRun(
-    long id, LocalDateTime startedAt, LocalDateTime finishedAt,
-    int totalFiles, int indexed, int skipped,
-    int failed, int deleted, Duration elapsed
-)
-
-enum QueryType { FULLTEXT, FILENAME, METADATA, MIXED }
-```
-
----
+| Class | Type | Key Fields |
+|-------|------|------------|
+| `FileRecord` | record | `path`, `filename`, `extension`, `sizeBytes`, `createdAt`, `modifiedAt` |
+| `SearchResult` | record | `path`, `filename`, `extension`, `preview`, `modifiedAt` |
+| `ExtractedRecord` | record | `record`, `content`, `preview` |
+| `IndexReport` | record | `totalFiles`, `indexed`, `skipped`, `failed`, `deleted`, `elapsed` |
+| `IndexRun` | record | `id`, `startedAt`, `finishedAt`, `totalFiles`, `indexed`, `elapsed` |
+| `QueryType` | enum | `FULLTEXT`, `FILENAME`, `METADATA`, `MIXED` |
 
 ## Database
 
