@@ -19,14 +19,43 @@ public class Crawler {
 
     private static final List<String> DEFAULT_IGNORE_RULES = List.of(
             "node_modules",
+            ".npm",
+            ".yarn",
+            ".pnpm-store",
+
             "target",
             "build",
             "dist",
+            "out",
+            ".gradle",
+            ".mvn",
+
             ".git",
+            ".svn",
+            ".hg",
+
             ".idea",
+            ".vscode",
+            ".vs",
+
+            "Windows",
+            "Program Files",
+            "Program Files (x86)",
+            "ProgramData",
+            "AppData",
+            "System Volume Information",
+            "$Recycle.Bin",
+            "Recovery",
+
+            "Temp",
+            "tmp",
+            ".cache",
             "__pycache__",
+            ".pytest_cache",
+
             "*.min.js",
-            "*.bundle.js"
+            "*.bundle.js",
+            "*.min.css"
     );
 
     public Crawler(Path root, List<String> ignoreRules) {
