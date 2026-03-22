@@ -12,50 +12,76 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.StreamSupport;
 
 public class Indexer {
 
     private enum IndexResult { INDEXED, SKIPPED, FAILED }
 
+    private static final int DEFAULT_THREAD_COUNT = Runtime.getRuntime().availableProcessors();
+
     private final Crawler crawler;
     private final Extractor extractor;
     private final FileRepository repository;
     private final IndexRunRepository indexRunRepository;
+    private final int threadCount;
 
-    public Indexer(FileRepository repository, IndexRunRepository indexRunRepository, Crawler crawler, Extractor extractor) {
+    public Indexer(FileRepository repository, IndexRunRepository indexRunRepository,
+                   Crawler crawler, Extractor extractor) {
+        this(repository, indexRunRepository, crawler, extractor, DEFAULT_THREAD_COUNT);
+    }
+
+    public Indexer(FileRepository repository, IndexRunRepository indexRunRepository,
+                   Crawler crawler, Extractor extractor, int threadCount) {
         this.repository = repository;
         this.indexRunRepository = indexRunRepository;
         this.crawler = crawler;
         this.extractor = extractor;
+        this.threadCount = threadCount;
     }
 
     public IndexReport run() {
         Instant start = Instant.now();
         long runId = 0;
+
         try {
             runId = indexRunRepository.startIndexing(LocalDateTime.now());
         } catch (SQLException e) {
             System.err.println("Failed to start index run tracking: " + e.getMessage());
         }
 
-        int totalFiles = 0, indexed = 0, failed = 0, skipped = 0, deleted = 0;
-        Set<Path> paths = new HashSet<>();
+        AtomicInteger totalFiles = new AtomicInteger();
+        AtomicInteger indexed = new AtomicInteger();
+        AtomicInteger skipped = new AtomicInteger();
+        AtomicInteger failed = new AtomicInteger();
+        Set<Path> paths = ConcurrentHashMap.newKeySet();
 
-        for (FileRecord record : (Iterable<FileRecord>) crawler.crawl()::iterator) {
-            totalFiles++;
-            paths.add(record.path());
-            switch (indexFile(record)) {
-                case INDEXED -> indexed++;
-                case SKIPPED -> skipped++;
-                case FAILED  -> failed++;
-            }
-            if (totalFiles % 100 == 0) {
-                System.out.println("Progress: " + totalFiles + " files processed...");
-            }
+        try (ForkJoinPool pool = new ForkJoinPool(threadCount);) {
+            pool.submit(() ->
+                    StreamSupport.stream(
+                                    ((Iterable<FileRecord>) crawler.crawl()::iterator).spliterator(), true)
+                            .forEach(record -> {
+                                paths.add(record.path());
+                                switch (indexFile(record)) {
+                                    case INDEXED -> indexed.incrementAndGet();
+                                    case SKIPPED -> skipped.incrementAndGet();
+                                    case FAILED  -> failed.incrementAndGet();
+                                }
+                                int total = totalFiles.incrementAndGet();
+                                if (total % 100 == 0) {
+                                    System.out.println("Progress: " + total + " files processed...");
+                                }
+                            })
+            ).get();
+        } catch (Exception e) {
+            System.err.println("Error during parallel indexing: " + e.getMessage());
         }
 
+        int deleted = 0;
         try {
             deleted = repository.batchDelete(paths);
             repository.optimizeFts();
@@ -64,7 +90,9 @@ public class Indexer {
         }
 
         Duration elapsed = Duration.between(start, Instant.now());
-        IndexReport report = new IndexReport(totalFiles, indexed, skipped, failed, deleted, elapsed);
+        IndexReport report = new IndexReport(
+                totalFiles.get(), indexed.get(), skipped.get(),
+                failed.get(), deleted, elapsed);
 
         try {
             indexRunRepository.endIndexing(runId, report);
