@@ -7,6 +7,7 @@ import app.indexer.IndexReport;
 import app.indexer.Indexer;
 import app.model.SearchResult;
 import app.search.SearchEngine;
+import app.search.query.QueryParser;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 
@@ -42,7 +43,7 @@ public class CLI implements Runnable {
             "  index C:\\Users\\user\\Documents",
             "  index C:\\projects -i target -i *.log --max-file-size 5"
     })
-    static
+
     class IndexCommand implements Runnable {
 
         @ParentCommand
@@ -104,7 +105,7 @@ public class CLI implements Runnable {
             "  search ext:java",
             "  search \"config ext:json\""
     })
-    static
+
     class SearchCommand implements Runnable {
 
         @ParentCommand
@@ -113,13 +114,16 @@ public class CLI implements Runnable {
         @Parameters(index = "0", description = "Search query")
         private String query;
 
+        @Option(names = {"--limit"}, description = "Maximum number of results (default: 50)")
+        private int limit = 50;
+
         @Override
         public void run() {
             try (Database db = parent.dbPath != null
                     ? new Database(parent.dbPath)
                     : new Database()) {
 
-                SearchEngine engine = new SearchEngine(db);
+                SearchEngine engine = new SearchEngine(db, new QueryParser(), limit);
                 List<SearchResult> results = engine.search(query);
 
                 if (results.isEmpty()) {
