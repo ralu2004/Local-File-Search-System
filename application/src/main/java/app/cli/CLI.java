@@ -22,9 +22,6 @@ import java.util.List;
 )
 public class CLI implements Runnable {
 
-    @Option(names = {"--db"}, description = "Custom database path (default: .searchengine/index.db)")
-    String dbPath;
-
     @Override
     public void run() {
         CommandLine.usage(this, System.out);
@@ -38,16 +35,16 @@ public class CLI implements Runnable {
             "  -i, --ignore     Glob patterns to ignore (e.g. *.log, target)",
             "  --max-file-size  Maximum file size in MB to index (default: 10)",
             "  --preview-lines  Number of preview lines to store (default: 3)",
+            "  --threads        Number of indexing threads (default: CPU count)",
             "",
             "Examples:",
             "  index C:\\Users\\user\\Documents",
             "  index C:\\projects -i target -i *.log --max-file-size 5"
     })
+    static class IndexCommand implements Runnable {
 
-    class IndexCommand implements Runnable {
-
-        @ParentCommand
-        private CLI parent;
+        @Option(names = {"--db"}, description = "Custom database path (default: .searchengine/index.db)")
+        private String dbPath;
 
         @Parameters(index = "0", description = "Root directory to index")
         private Path root;
@@ -61,15 +58,15 @@ public class CLI implements Runnable {
         @Option(names = {"--preview-lines"}, description = "Number of preview lines (default: 3)")
         private int previewLines = 3;
 
+        @Option(names = {"--threads"}, description = "Number of indexing threads (default: CPU count)")
+        private int threads = Runtime.getRuntime().availableProcessors();
+
         @Override
         public void run() {
-            try (Database db = parent.dbPath != null
-                    ? new Database(parent.dbPath)
-                    : new Database()) {
-
+            try (Database db = dbPath != null ? new Database(dbPath) : new Database()) {
                 Crawler crawler = new Crawler(root, ignoreRules);
                 Extractor extractor = new Extractor(previewLines, (long) maxFileSizeMb * 1024 * 1024);
-                Indexer indexer = new Indexer(db, db, crawler, extractor);
+                Indexer indexer = new Indexer(db, db, crawler, extractor, threads);
 
                 System.out.println("Indexing " + root + "...");
                 IndexReport report = indexer.run();
@@ -105,11 +102,10 @@ public class CLI implements Runnable {
             "  search ext:java",
             "  search \"config ext:json\""
     })
+    static class SearchCommand implements Runnable {
 
-    class SearchCommand implements Runnable {
-
-        @ParentCommand
-        private CLI parent;
+        @Option(names = {"--db"}, description = "Custom database path (default: .searchengine/index.db)")
+        private String dbPath;
 
         @Parameters(index = "0", description = "Search query")
         private String query;
@@ -119,10 +115,7 @@ public class CLI implements Runnable {
 
         @Override
         public void run() {
-            try (Database db = parent.dbPath != null
-                    ? new Database(parent.dbPath)
-                    : new Database()) {
-
+            try (Database db = dbPath != null ? new Database(dbPath) : new Database()) {
                 SearchEngine engine = new SearchEngine(db, new QueryParser(), limit);
                 List<SearchResult> results = engine.search(query);
 
