@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.StreamSupport;
 
-public class Indexer {
+public class Indexer implements AutoCloseable{
 
     private static final int DEFAULT_THREAD_COUNT = Runtime.getRuntime().availableProcessors();
     private static final int WRITE_QUEUE_CAPACITY = 1000;
@@ -32,6 +32,12 @@ public class Indexer {
     private final FileRepository repository;
     private final IndexRunRepository indexRunRepository;
     private final int threadCount;
+    
+    private final ExecutorService backgroundExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "indexer-background");
+        t.setDaemon(true);
+        return t;
+    });
 
     public Indexer(FileRepository repository, IndexRunRepository indexRunRepository,
                    Crawler crawler, Extractor extractor) {
@@ -151,6 +157,15 @@ public class Indexer {
         }
 
         return report;
+    }
+
+    public CompletableFuture<IndexReport> runAsync() {
+        return CompletableFuture.supplyAsync(this::run, backgroundExecutor);
+    }
+
+    @Override
+    public void close() {
+        backgroundExecutor.shutdown();
     }
 
     private void flushBatch(List<ExtractedRecord> batch, AtomicInteger indexed, AtomicInteger failed) {
