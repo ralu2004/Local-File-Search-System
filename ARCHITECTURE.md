@@ -123,6 +123,98 @@ graph TD
 This level describes the key classes and interfaces within the Core Library.
 This section reflects the current implementation and will evolve in future iterations.
 
+### Class Diagram
+
+```mermaid
+classDiagram
+    class FileRepository {
+        <<interface>>
+        +upsert(FileRecord, String, String)
+        +batchUpsert(List~ExtractedRecord~)
+        +delete(Path)
+        +batchDelete(Set~Path~) int
+        +search(Query, int) List~SearchResult~
+        +getModifiedAt(Path) LocalDateTime
+        +getByPath(Path) FileRecord
+        +getAll() List~FileRecord~
+        +getByExtension(String) List~FileRecord~
+        +optimizeFts()
+    }
+
+    class IndexRunRepository {
+        <<interface>>
+        +startIndexing(LocalDateTime) long
+        +endIndexing(long, IndexReport)
+        +getHistory() List~IndexRun~
+    }
+
+    class Database {
+        -HikariDataSource dataSource
+        -QueryBuilder queryBuilder
+        +Database()
+        +Database(String)
+        +close()
+    }
+
+    class Crawler {
+        -Path root
+        -List~PathMatcher~ matchers
+        +crawl() Stream~FileRecord~
+    }
+
+    class Extractor {
+        -int previewLines
+        -long maxFileSize
+        +extract(FileRecord) String
+        +preview(FileRecord) String
+    }
+
+    class Indexer {
+        -int threadCount
+        -ExecutorService backgroundExecutor
+        +run() IndexReport
+        +runAsync() CompletableFuture~IndexReport~
+        +close()
+    }
+
+    class SearchEngine {
+        -FileRepository repository
+        -QueryParser parser
+        -int limit
+        +search(String) List~SearchResult~
+    }
+
+    class QueryParser {
+        +parse(String) Query
+    }
+
+    class Query {
+        <<record>>
+        +QueryType type
+        +String value
+        +Map~String,String~ filters
+    }
+
+    class QueryType {
+        <<enumeration>>
+        FULLTEXT
+        FILENAME
+        METADATA
+        MIXED
+    }
+
+    Database ..|> FileRepository
+    Database ..|> IndexRunRepository
+    Indexer ..> FileRepository
+    Indexer ..> IndexRunRepository
+    Indexer ..> Crawler
+    Indexer ..> Extractor
+    SearchEngine ..> FileRepository
+    SearchEngine ..> QueryParser
+    QueryParser ..> Query
+    Query ..> QueryType
+```
+
 ### Interfaces
 
 ```java
