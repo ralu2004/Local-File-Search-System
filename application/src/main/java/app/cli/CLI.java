@@ -7,7 +7,6 @@ import app.indexer.IndexReport;
 import app.indexer.Indexer;
 import app.model.SearchResult;
 import app.search.SearchEngine;
-import app.search.query.QueryParser;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 
@@ -22,13 +21,32 @@ import java.util.List;
 )
 public class CLI implements Runnable {
 
+    @Option(names = {"--db"}, description = "Custom database path (default: .searchengine/index.db)")
+    String dbPath;
+
     @Override
     public void run() {
         CommandLine.usage(this, System.out);
     }
 
-    @Command(name = "index", description = "Index files in a directory")
-    static class IndexCommand implements Runnable {
+    @Command(name = "index", description = {
+            "Index files in a directory.",
+            "",
+            "Options:",
+            "  --db             Custom database path",
+            "  -i, --ignore     Glob patterns to ignore (e.g. *.log, target)",
+            "  --max-file-size  Maximum file size in MB to index (default: 10)",
+            "  --preview-lines  Number of preview lines to store (default: 3)",
+            "",
+            "Examples:",
+            "  index C:\\Users\\user\\Documents",
+            "  index C:\\projects -i target -i *.log --max-file-size 5"
+    })
+    static
+    class IndexCommand implements Runnable {
+
+        @ParentCommand
+        private CLI parent;
 
         @Parameters(index = "0", description = "Root directory to index")
         private Path root;
@@ -36,38 +54,71 @@ public class CLI implements Runnable {
         @Option(names = {"-i", "--ignore"}, description = "Glob patterns to ignore")
         private List<String> ignoreRules = List.of();
 
+        @Option(names = {"--max-file-size"}, description = "Max file size in MB (default: 10)")
+        private int maxFileSizeMb = 10;
+
+        @Option(names = {"--preview-lines"}, description = "Number of preview lines (default: 3)")
+        private int previewLines = 3;
+
         @Override
         public void run() {
-            try (Database db = new Database()) {
+            try (Database db = parent.dbPath != null
+                    ? new Database(parent.dbPath)
+                    : new Database()) {
+
                 Crawler crawler = new Crawler(root, ignoreRules);
-                Extractor extractor = new Extractor();
+                Extractor extractor = new Extractor(previewLines, (long) maxFileSizeMb * 1024 * 1024);
                 Indexer indexer = new Indexer(db, db, crawler, extractor);
 
                 System.out.println("Indexing " + root + "...");
                 IndexReport report = indexer.run();
 
-                System.out.println("Indexing finished with");
-                System.out.println("-- total files: " + report.totalFiles());
-                System.out.println("-- indexed: " + report.indexed());
-                System.out.println("-- skipped: " + report.skipped());
-                System.out.println("-- failed: " + report.failed());
-                System.out.println("-- deleted: " + report.deleted());
-                System.out.println(report.elapsed().toSeconds() + " s");
+                System.out.println("\nIndexing complete!");
+                System.out.println("─────────────────────────────────");
+                System.out.println(" Total:   " + report.totalFiles());
+                System.out.println(" Indexed: " + report.indexed());
+                System.out.println(" Skipped: " + report.skipped());
+                System.out.println(" Failed:  " + report.failed());
+                System.out.println(" Deleted: " + report.deleted());
+                System.out.println(" Time:    " + report.elapsed().toSeconds() + "s");
+                System.out.println("─────────────────────────────────");
             } catch (Exception e) {
                 System.err.println("Error: " + e.getMessage());
             }
         }
     }
 
-    @Command(name = "search", description = "Search indexed files")
-    static class SearchCommand implements Runnable {
+    @Command(name = "search", description = {
+            "Search indexed files.",
+            "",
+            "Query syntax:",
+            "  <term>              Full-text search",
+            "  <filename.ext>      Search by filename",
+            "  ext:<extension>     Filter by extension",
+            "  modified:<date>     Filter by date (YYYY-MM-DD)",
+            "  size:<bytes>        Filter by file size",
+            "",
+            "Examples:",
+            "  search \"getting started\"",
+            "  search README.md",
+            "  search ext:java",
+            "  search \"config ext:json\""
+    })
+    static
+    class SearchCommand implements Runnable {
+
+        @ParentCommand
+        private CLI parent;
 
         @Parameters(index = "0", description = "Search query")
         private String query;
 
         @Override
         public void run() {
-            try (Database db = new Database()) {
+            try (Database db = parent.dbPath != null
+                    ? new Database(parent.dbPath)
+                    : new Database()) {
+
                 SearchEngine engine = new SearchEngine(db);
                 List<SearchResult> results = engine.search(query);
 
