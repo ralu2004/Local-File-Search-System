@@ -5,6 +5,8 @@ import app.model.*;
 import app.repository.FileRepository;
 import app.repository.IndexRunRepository;
 import app.search.query.Query;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -17,19 +19,21 @@ import java.util.Set;
 
 public class Database implements FileRepository, IndexRunRepository, AutoCloseable {
 
-    private final Connection connection;
+    private final HikariDataSource dataSource;
     private final QueryBuilder queryBuilder;
 
-    public Database(String dbPath, QueryBuilder queryBuilder) throws SQLException, IOException {
+    public Database(String dbPath, QueryBuilder queryBuilder) throws IOException, SQLException {
         Path path = Paths.get(dbPath);
         Files.createDirectories(path.getParent());
-        connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
-        connection.setAutoCommit(true);
+
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl("jdbc:sqlite:" + dbPath + "?journal_mode=WAL&busy_timeout=5000");
+        config.setMaximumPoolSize(4);
+        config.setMinimumIdle(1);
+        config.setConnectionTimeout(5000);
+
+        this.dataSource = new HikariDataSource(config);
         this.queryBuilder = queryBuilder;
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute("PRAGMA journal_mode = WAL;");
-            stmt.execute("PRAGMA busy_timeout = 5000;");
-        }
         initializeSchema();
     }
 
@@ -42,7 +46,8 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
     }
 
     private void initializeSchema() throws SQLException {
-        try (Statement stmt = connection.createStatement()) {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
             stmt.execute("""
                     CREATE TABLE IF NOT EXISTS files (
                         path        TEXT PRIMARY KEY,
@@ -82,105 +87,111 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public void upsert(FileRecord record, String content, String preview) throws SQLException {
-        connection.setAutoCommit(false);
-        try {
-            String statement = """
-                    INSERT OR REPLACE INTO files (path, filename, extension, size_bytes, created_at, modified_at, indexed_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """;
-            try (PreparedStatement stmt = connection.prepareStatement(statement)) {
-                stmt.setString(1, record.path().toString());
-                stmt.setString(2, record.filename());
-                stmt.setString(3, record.extension());
-                stmt.setLong(4, record.sizeBytes());
-                stmt.setString(5, record.createdAt().toString());
-                stmt.setString(6, record.modifiedAt().toString());
-                stmt.setString(7, LocalDateTime.now().toString());
-                stmt.executeUpdate();
-            }
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                String statement = """
+                        INSERT OR REPLACE INTO files (path, filename, extension, size_bytes, created_at, modified_at, indexed_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """;
+                try (PreparedStatement stmt = conn.prepareStatement(statement)) {
+                    stmt.setString(1, record.path().toString());
+                    stmt.setString(2, record.filename());
+                    stmt.setString(3, record.extension());
+                    stmt.setLong(4, record.sizeBytes());
+                    stmt.setString(5, record.createdAt().toString());
+                    stmt.setString(6, record.modifiedAt().toString());
+                    stmt.setString(7, LocalDateTime.now().toString());
+                    stmt.executeUpdate();
+                }
 
-            statement = "DELETE FROM files_fts WHERE path = ?";
-            try (PreparedStatement stmt = connection.prepareStatement(statement)) {
-                stmt.setString(1, record.path().toString());
-                stmt.executeUpdate();
-            }
+                statement = "DELETE FROM files_fts WHERE path = ?";
+                try (PreparedStatement stmt = conn.prepareStatement(statement)) {
+                    stmt.setString(1, record.path().toString());
+                    stmt.executeUpdate();
+                }
 
-            statement = """
-                    INSERT OR REPLACE INTO files_fts (path, filename, content, preview)
-                    VALUES (?, ?, ?, ?)
-                    """;
-            try (PreparedStatement stmt = connection.prepareStatement(statement)) {
-                stmt.setString(1, record.path().toString());
-                stmt.setString(2, record.filename());
-                stmt.setString(3, content);
-                stmt.setString(4, preview);
-                stmt.executeUpdate();
+                statement = """
+                        INSERT OR REPLACE INTO files_fts (path, filename, content, preview)
+                        VALUES (?, ?, ?, ?)
+                        """;
+                try (PreparedStatement stmt = conn.prepareStatement(statement)) {
+                    stmt.setString(1, record.path().toString());
+                    stmt.setString(2, record.filename());
+                    stmt.setString(3, content);
+                    stmt.setString(4, preview);
+                    stmt.executeUpdate();
+                }
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
             }
-            connection.commit();
-        } catch (SQLException e) {
-            connection.rollback();
-            throw e;
-        } finally {
-            connection.setAutoCommit(true);
         }
     }
 
     @Override
     public void delete(Path path) throws SQLException {
-        connection.setAutoCommit(false);
-        try {
-            String statement = "DELETE FROM files WHERE path = ?";
-            try (PreparedStatement stmt = connection.prepareStatement(statement)) {
-                stmt.setString(1, path.toString());
-                stmt.executeUpdate();
-            }
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                String statement = "DELETE FROM files WHERE path = ?";
+                try (PreparedStatement stmt = conn.prepareStatement(statement)) {
+                    stmt.setString(1, path.toString());
+                    stmt.executeUpdate();
+                }
 
-            statement = "DELETE FROM files_fts WHERE path = ?";
-            try (PreparedStatement stmt = connection.prepareStatement(statement)) {
-                stmt.setString(1, path.toString());
-                stmt.executeUpdate();
+                statement = "DELETE FROM files_fts WHERE path = ?";
+                try (PreparedStatement stmt = conn.prepareStatement(statement)) {
+                    stmt.setString(1, path.toString());
+                    stmt.executeUpdate();
+                }
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
             }
-            connection.commit();
-        } catch (SQLException e) {
-            connection.rollback();
-            throw e;
-        } finally {
-            connection.setAutoCommit(true);
         }
     }
 
     @Override
     public int batchDelete(Set<Path> paths) throws SQLException {
-        connection.setAutoCommit(false);
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute("CREATE TEMP TABLE IF NOT EXISTS crawled_paths (path TEXT PRIMARY KEY);");
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE TEMP TABLE IF NOT EXISTS crawled_paths (path TEXT PRIMARY KEY);");
 
-            String insert = "INSERT OR IGNORE INTO crawled_paths (path) VALUES (?)";
-            try (PreparedStatement insertStmt = connection.prepareStatement(insert)) {
-                for (Path path : paths) {
-                    insertStmt.setString(1, path.toString());
-                    insertStmt.addBatch();
+                String insert = "INSERT OR IGNORE INTO crawled_paths (path) VALUES (?)";
+                try (PreparedStatement insertStmt = conn.prepareStatement(insert)) {
+                    for (Path path : paths) {
+                        insertStmt.setString(1, path.toString());
+                        insertStmt.addBatch();
+                    }
+                    insertStmt.executeBatch();
                 }
-                insertStmt.executeBatch();
+
+                int deleted = 0;
+                try (ResultSet rs = stmt.executeQuery(
+                        "SELECT COUNT(*) FROM files WHERE path NOT IN (SELECT path FROM crawled_paths);")) {
+                    if (rs.next()) deleted = rs.getInt(1);
+                }
+
+                stmt.execute("DELETE FROM files WHERE path NOT IN (SELECT path FROM crawled_paths);");
+                stmt.execute("DELETE FROM files_fts WHERE path NOT IN (SELECT path FROM crawled_paths);");
+                stmt.execute("DROP TABLE IF EXISTS crawled_paths;");
+
+                conn.commit();
+                return deleted;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
             }
-
-            int deleted = 0;
-            try (ResultSet rs = stmt.executeQuery(
-                    "SELECT COUNT(*) FROM files WHERE path NOT IN (SELECT path FROM crawled_paths);")) {
-                if (rs.next()) deleted = rs.getInt(1);
-            }
-
-            stmt.execute("DELETE FROM files WHERE path NOT IN (SELECT path FROM crawled_paths);");
-            stmt.execute("DELETE FROM files_fts WHERE path NOT IN (SELECT path FROM crawled_paths);");
-            stmt.execute("DROP TABLE IF EXISTS crawled_paths;");
-
-            connection.commit();
-            return deleted;
-        } catch (SQLException e) {
-            connection.rollback();
-            throw e;
-        } finally {
-            connection.setAutoCommit(true);
         }
     }
 
@@ -214,12 +225,14 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public long startIndexing(LocalDateTime startedAt) throws SQLException {
-        String statement = "INSERT INTO index_runs (started_at) VALUES (?)";
-        try (PreparedStatement stmt = connection.prepareStatement(statement, Statement.RETURN_GENERATED_KEYS)) {
-            stmt.setString(1, startedAt.toString());
-            stmt.executeUpdate();
-            try (ResultSet keys = stmt.getGeneratedKeys()) {
-                if (keys.next()) return keys.getLong(1);
+        try (Connection conn = dataSource.getConnection()) {
+            String statement = "INSERT INTO index_runs (started_at) VALUES (?)";
+            try (PreparedStatement stmt = conn.prepareStatement(statement, Statement.RETURN_GENERATED_KEYS)) {
+                stmt.setString(1, startedAt.toString());
+                stmt.executeUpdate();
+                try (ResultSet keys = stmt.getGeneratedKeys()) {
+                    if (keys.next()) return keys.getLong(1);
+                }
             }
         }
         return 0;
@@ -227,28 +240,32 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public void endIndexing(long runId, IndexReport report) throws SQLException {
-        String statement = """
-                UPDATE index_runs
-                SET finished_at=?, total_files=?, indexed=?, skipped=?, failed=?, deleted=?, elapsed_seconds=?
-                WHERE id=?
-                """;
-        connection.setAutoCommit(false);
-        try (PreparedStatement stmt = connection.prepareStatement(statement)) {
-            stmt.setString(1, LocalDateTime.now().toString());
-            stmt.setInt(2, report.totalFiles());
-            stmt.setInt(3, report.indexed());
-            stmt.setInt(4, report.skipped());
-            stmt.setInt(5, report.failed());
-            stmt.setInt(6, report.deleted());
-            stmt.setLong(7, report.elapsed().toSeconds());
-            stmt.setLong(8, runId);
-            stmt.executeUpdate();
-            connection.commit();
-        } catch (SQLException e) {
-            connection.rollback();
-            throw e;
-        } finally {
-            connection.setAutoCommit(true);
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                String statement = """
+                        UPDATE index_runs
+                        SET finished_at=?, total_files=?, indexed=?, skipped=?, failed=?, deleted=?, elapsed_seconds=?
+                        WHERE id=?
+                        """;
+                try (PreparedStatement stmt = conn.prepareStatement(statement)) {
+                    stmt.setString(1, LocalDateTime.now().toString());
+                    stmt.setInt(2, report.totalFiles());
+                    stmt.setInt(3, report.indexed());
+                    stmt.setInt(4, report.skipped());
+                    stmt.setInt(5, report.failed());
+                    stmt.setInt(6, report.deleted());
+                    stmt.setLong(7, report.elapsed().toSeconds());
+                    stmt.setLong(8, runId);
+                    stmt.executeUpdate();
+                }
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
         }
     }
 
@@ -259,14 +276,16 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public void optimizeFts() throws SQLException {
-        try (Statement stmt = connection.createStatement()) {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
             stmt.execute("INSERT INTO files_fts(files_fts) VALUES('optimize');");
         }
     }
 
     private List<FileRecord> queryFiles(String sql, Object... params) throws SQLException {
         List<FileRecord> files = new ArrayList<>();
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < params.length; i++) {
                 stmt.setObject(i + 1, params[i]);
             }
@@ -281,7 +300,8 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     private List<SearchResult> queryResults(String sql, List<Object> params) throws SQLException {
         List<SearchResult> results = new ArrayList<>();
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < params.size(); i++) {
                 stmt.setObject(i + 1, params.get(i));
             }
@@ -296,7 +316,8 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     private List<IndexRun> queryIndexRuns(String sql, Object... params) throws SQLException {
         List<IndexRun> runs = new ArrayList<>();
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < params.length; i++) {
                 stmt.setObject(i + 1, params[i]);
             }
@@ -350,9 +371,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
     }
 
     @Override
-    public void close() throws Exception {
-        if (!connection.isClosed()) {
-            connection.close();
-        }
+    public void close() {
+        dataSource.close();
     }
 }
