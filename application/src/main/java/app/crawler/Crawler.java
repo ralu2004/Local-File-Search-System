@@ -8,7 +8,10 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import app.util.FileTypes;
 
@@ -75,41 +78,99 @@ public class Crawler {
             throw new IllegalArgumentException("Root path is not a directory: " + root);
         }
 
-        Stream.Builder<FileRecord> builder = Stream.builder();
+        final Object end = new Object();
+        BlockingQueue<Object> queue = new LinkedBlockingQueue<>();
 
-        try {
-            Files.walkFileTree(root, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE,
-                    new SimpleFileVisitor<>() {
+        Thread producer = Thread.ofVirtual().start(() -> {
+            try {
+                Files.walkFileTree(root, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE,
+                        new SimpleFileVisitor<>() {
 
-                        @Override
-                        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-                            if (isIgnored(dir)) return FileVisitResult.SKIP_SUBTREE;
-                            return FileVisitResult.CONTINUE;
-                        }
-
-                        @Override
-                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                            if (!isIgnored(file)) {
-                                builder.accept(buildRecord(file, attrs));
+                            @Override
+                            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                                if (isIgnored(dir)) return FileVisitResult.SKIP_SUBTREE;
+                                return FileVisitResult.CONTINUE;
                             }
-                            return FileVisitResult.CONTINUE;
-                        }
 
-                        @Override
-                        public FileVisitResult visitFileFailed(Path file, IOException exc) {
-                            if (exc instanceof FileSystemLoopException) {
-                                System.err.println("Symlink loop detected, skipping: " + file);
-                            } else {
-                                System.err.println("Could not access file, skipping: " + file);
+                            @Override
+                            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                                if (!isIgnored(file)) {
+                                    try {
+                                        queue.put(buildRecord(file, attrs));
+                                    } catch (InterruptedException e) {
+                                        Thread.currentThread().interrupt();
+                                        return FileVisitResult.TERMINATE;
+                                    }
+                                }
+                                return FileVisitResult.CONTINUE;
                             }
-                            return FileVisitResult.CONTINUE;
-                        }
-                    });
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to crawl directory: " + root, e);
-        }
 
-        return builder.build();
+                            @Override
+                            public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                                if (exc instanceof FileSystemLoopException) {
+                                    System.err.println("Symlink loop detected, skipping: " + file);
+                                } else {
+                                    System.err.println("Could not access file, skipping: " + file);
+                                }
+                                return FileVisitResult.CONTINUE;
+                            }
+                        });
+            } catch (IOException e) {
+                try {
+                    queue.put(new IllegalStateException("Failed to crawl directory: " + root, e));
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+            } finally {
+                try {
+                    queue.put(end);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+
+        Iterator<FileRecord> iterator = new Iterator<>() {
+            private FileRecord next;
+            private boolean finished;
+
+            @Override
+            public boolean hasNext() {
+                if (finished) return false;
+                if (next != null) return true;
+
+                try {
+                    Object item = queue.take();
+                    if (item == end) {
+                        finished = true;
+                        return false;
+                    }
+                    if (item instanceof RuntimeException ex) {
+                        finished = true;
+                        throw ex;
+                    }
+                    next = (FileRecord) item;
+                    return true;
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    finished = true;
+                    return false;
+                }
+            }
+
+            @Override
+            public FileRecord next() {
+                if (!hasNext()) throw new NoSuchElementException();
+                FileRecord current = next;
+                next = null;
+                return current;
+            }
+        };
+
+        return StreamSupport.stream(
+                Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED | Spliterator.NONNULL),
+                false
+        ).onClose(producer::interrupt);
     }
 
     private FileRecord buildRecord(Path file, BasicFileAttributes attrs) {
