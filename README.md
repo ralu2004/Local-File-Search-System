@@ -31,7 +31,7 @@ java -jar application/target/application-1.0-SNAPSHOT.jar index <directory>
 | `-i, --ignore <pattern>` | — | Glob pattern to ignore (repeatable) |
 | `--max-file-size <MB>` | `10` | Skip files larger than this |
 | `--preview-lines <n>` | `3` | Number of preview lines to store |
-| `--threads <n>` | CPU count | Number of extraction threads |
+| `--batch-size <n>` | `250` | Number of files per DB batch write |
 
 **Examples:**
 
@@ -41,6 +41,9 @@ java -jar ... index C:\Users\user\Documents
 
 # With ignore rules
 java -jar ... index C:\Users\user\Documents -i "*.log" -i "backup"
+
+# Tune DB batch writes
+java -jar ... index C:\Users\user\Documents --batch-size 500
 
 # Custom database path
 java -jar ... --db C:\myindex\index.db index C:\Users\user\Documents
@@ -83,7 +86,7 @@ java -jar ... search "config ext:json" --limit 10
 
 ## Default ignore rules
 
-The following are ignored automatically: `node_modules`, `target`, `build`, `dist`, `.git`, `.idea`, `AppData`, `Program Files`, `Windows`, and other common system directories.
+The crawler always ignores common system/build directories (for example `node_modules`, `target`, `build`, `dist`, `.git`, `.idea`, `AppData`, `Program Files`, `Windows`) and also ignores hidden files/directories and non-text files. You can add more rules with `-i/--ignore`.
 
 ---
 
