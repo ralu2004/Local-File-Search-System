@@ -92,7 +92,7 @@ The crawler always ignores common system/build directories (for example `node_mo
 
 ## Incremental indexing verification
 
-Use this quick flow to validate that only changed files are re-indexed:
+To validate that only changed files are re-indexed, do the following steps:
 
 1. Run an initial index on a test directory.
 2. Modify one indexed text file, add one new file, and delete one existing indexed file.
