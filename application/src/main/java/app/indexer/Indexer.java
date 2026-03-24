@@ -21,7 +21,9 @@ import java.util.Set;
 
 public class Indexer {
 
-    private static final int BATCH_SIZE = 250;
+    private static final int DEFAULT_BATCH_SIZE = 250;
+    private static final int PROGRESS_LOG_INTERVAL = 500;
+    private static final int OPTIMIZE_FTS_MIN_INDEXED = 500;
 
     private enum IndexResult { QUEUED, SKIPPED, FAILED }
 
@@ -29,12 +31,19 @@ public class Indexer {
     private final Extractor extractor;
     private final FileRepository repository;
     private final IndexRunRepository indexRunRepository;
+    private final int batchSize;
 
     public Indexer(FileRepository repository, IndexRunRepository indexRunRepository, Crawler crawler, Extractor extractor) {
+        this(repository, indexRunRepository, crawler, extractor, DEFAULT_BATCH_SIZE);
+    }
+
+    public Indexer(FileRepository repository, IndexRunRepository indexRunRepository,
+                   Crawler crawler, Extractor extractor, int batchSize) {
         this.repository = repository;
         this.indexRunRepository = indexRunRepository;
         this.crawler = crawler;
         this.extractor = extractor;
+        this.batchSize = Math.max(1, batchSize);
     }
 
     public IndexReport run() {
@@ -49,7 +58,7 @@ public class Indexer {
         IndexingStats stats = new IndexingStats();
         int deleted = 0;
         Set<Path> paths = new HashSet<>();
-        List<ExtractedRecord> pendingBatch = new ArrayList<>(BATCH_SIZE);
+        List<ExtractedRecord> pendingBatch = new ArrayList<>(batchSize);
         final Map<Path, LocalDateTime> storedModifiedByPath = preloadStoredModifiedByPath();
 
         crawler.crawl(record -> {
@@ -57,7 +66,7 @@ public class Indexer {
             paths.add(record.path());
             switch (indexFile(record, pendingBatch, storedModifiedByPath)) {
                 case QUEUED -> {
-                    if (pendingBatch.size() >= BATCH_SIZE) {
+                    if (pendingBatch.size() >= batchSize) {
                         try {
                             stats.indexed += flushBatch(pendingBatch);
                         } catch (SQLException e) {
@@ -70,7 +79,7 @@ public class Indexer {
                 case SKIPPED -> stats.skipped++;
                 case FAILED  -> stats.failed++;
             }
-            if (currentTotal % 100 == 0) {
+            if (currentTotal % PROGRESS_LOG_INTERVAL == 0) {
                 System.out.println("Progress: " + currentTotal + " files processed...");
             }
         });
@@ -80,7 +89,9 @@ public class Indexer {
                 stats.indexed += flushBatch(pendingBatch);
             }
             deleted = repository.batchDelete(paths);
-            repository.optimizeFts();
+            if (stats.indexed >= OPTIMIZE_FTS_MIN_INDEXED) {
+                repository.optimizeFts();
+            }
         } catch (SQLException e) {
             System.err.println("Index finalization failed: " + e.getMessage());
             stats.failed += pendingBatch.size();

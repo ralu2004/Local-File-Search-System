@@ -37,6 +37,7 @@ public class CLI implements Runnable {
             "  -i, --ignore     Glob patterns to ignore (e.g. *.log, target)",
             "  --max-file-size  Maximum file size in MB to index (default: 10)",
             "  --preview-lines  Number of preview lines to store (default: 3)",
+            "  --batch-size     Number of files per DB batch write (default: 250)",
             "",
             "Examples:",
             "  index C:\\Users\\user\\Documents",
@@ -60,6 +61,9 @@ public class CLI implements Runnable {
         @Option(names = {"--preview-lines"}, description = "Number of preview lines (default: 3)")
         private int previewLines = 3;
 
+        @Option(names = {"--batch-size"}, description = "Number of files per DB batch write (default: 250)")
+        private int batchSize = 250;
+
         @Override
         public void run() {
             try (Database db = parent.dbPath != null
@@ -68,7 +72,7 @@ public class CLI implements Runnable {
 
                 Crawler crawler = new Crawler(root, ignoreRules);
                 Extractor extractor = new Extractor(previewLines, (long) maxFileSizeMb * 1024 * 1024);
-                Indexer indexer = new Indexer(db, db, crawler, extractor);
+                Indexer indexer = new Indexer(db, db, crawler, extractor, batchSize);
 
                 System.out.println("Indexing " + root + "...");
                 IndexReport report = indexer.run();
