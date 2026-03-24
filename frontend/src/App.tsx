@@ -116,6 +116,25 @@ function formatFileSize(bytes: unknown): string {
   return `${(mb / 1024).toFixed(2)} GB`
 }
 
+function formatElapsed(value: unknown): string {
+  if (value === null || value === undefined) return '—'
+
+  if (typeof value === 'number' || /^-?\d+(\.\d+)?$/.test(String(value).trim())) {
+    const totalSeconds = typeof value === 'number' ? value : Number(String(value).trim())
+    if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return String(value)
+
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+
+    if (hours > 0) return `${hours}h ${minutes}m ${seconds.toFixed(1)}s`
+    if (minutes > 0) return `${minutes}m ${seconds.toFixed(1)}s`
+    return `${seconds.toFixed(1)}s`
+  }
+
+  return String(value)
+}
+
 function App() {
   const [root, setRoot] = useState('D:\\UTCN\\An3\\Sem2\\SD\\Local-File-Search-System')
   const [ignoreRules, setIgnoreRules] = useState('*.log')
@@ -285,7 +304,7 @@ function App() {
             <div>Skipped: {indexing.lastReport.skipped}</div>
             <div>Failed: {indexing.lastReport.failed}</div>
             <div>Deleted: {indexing.lastReport.deleted}</div>
-            <div>Elapsed: {indexing.lastReport.elapsed}</div>
+            <div>Elapsed: {formatElapsed(indexing.lastReport.elapsed)}</div>
           </div>
         )}
 
