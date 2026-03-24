@@ -9,5 +9,6 @@ public record IndexingJobSnapshot(
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
         IndexReport lastReport,
-        String lastError
+        String lastError,
+        IndexingLiveProgress liveProgress
 ) {}

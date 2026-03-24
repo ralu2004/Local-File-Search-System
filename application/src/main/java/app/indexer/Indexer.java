@@ -3,6 +3,7 @@ package app.indexer;
 import app.crawler.Crawler;
 import app.extractor.Extractor;
 import app.extractor.FileTooLargeException;
+import app.indexer.job.IndexingLiveProgress;
 import app.model.ExtractedRecord;
 import app.model.FileRecord;
 import app.repository.FileRepository;
@@ -32,18 +33,27 @@ public class Indexer {
     private final FileRepository repository;
     private final IndexRunRepository indexRunRepository;
     private final int batchSize;
+    /** Optional; when non-null, counters are published for {@code /api/index/status} while this job runs. */
+    private final IndexingLiveProgress liveProgress;
 
     public Indexer(FileRepository repository, IndexRunRepository indexRunRepository, Crawler crawler, Extractor extractor) {
-        this(repository, indexRunRepository, crawler, extractor, DEFAULT_BATCH_SIZE);
+        this(repository, indexRunRepository, crawler, extractor, DEFAULT_BATCH_SIZE, null);
     }
 
     public Indexer(FileRepository repository, IndexRunRepository indexRunRepository,
                    Crawler crawler, Extractor extractor, int batchSize) {
+        this(repository, indexRunRepository, crawler, extractor, batchSize, null);
+    }
+
+    public Indexer(FileRepository repository, IndexRunRepository indexRunRepository,
+                   Crawler crawler, Extractor extractor, int batchSize,
+                   IndexingLiveProgress liveProgress) {
         this.repository = repository;
         this.indexRunRepository = indexRunRepository;
         this.crawler = crawler;
         this.extractor = extractor;
         this.batchSize = Math.max(1, batchSize);
+        this.liveProgress = liveProgress;
     }
 
     public IndexReport run() {
@@ -63,6 +73,11 @@ public class Indexer {
         List<ExtractedRecord> pendingBatch = new ArrayList<>(batchSize);
         final Map<Path, LocalDateTime> storedModifiedByPath = preloadStoredModifiedByPath();
 
+        if (liveProgress != null) {
+            liveProgress.setPhase("crawling");
+            publishLive(stats, pendingBatch.size());
+        }
+
         crawler.crawl(record -> {
             int currentTotal = ++stats.totalFiles;
             paths.add(record.path());
@@ -81,22 +96,41 @@ public class Indexer {
                 case SKIPPED -> stats.skipped++;
                 case FAILED  -> stats.failed++;
             }
+            if (liveProgress != null && (currentTotal % 20 == 0 || currentTotal <= 3)) {
+                publishLive(stats, pendingBatch.size());
+            }
             if (currentTotal % PROGRESS_LOG_INTERVAL == 0) {
                 System.out.println("Progress: " + currentTotal + " files processed...");
             }
         });
 
+        if (liveProgress != null) {
+            publishLive(stats, pendingBatch.size());
+            liveProgress.setPhase("finalizing");
+            publishLive(stats, pendingBatch.size());
+        }
+
         try {
             if (!pendingBatch.isEmpty()) {
                 stats.indexed += flushBatch(pendingBatch);
             }
+            if (liveProgress != null) {
+                publishLive(stats, pendingBatch.size());
+            }
             deleted = repository.batchDelete(paths);
+            if (liveProgress != null) {
+                publishLive(stats, pendingBatch.size());
+            }
             if (stats.indexed >= OPTIMIZE_FTS_MIN_INDEXED) {
                 repository.optimizeFts();
             }
         } catch (SQLException e) {
             System.err.println("Index finalization failed: " + e.getMessage());
             stats.failed += pendingBatch.size();
+        }
+
+        if (liveProgress != null) {
+            publishLive(stats, pendingBatch.size());
         }
 
         Duration elapsed = Duration.between(start, Instant.now());
@@ -145,5 +179,10 @@ public class Indexer {
             System.err.println("Failed to preload modified times: " + e.getMessage());
             return Map.of();
         }
+    }
+
+    private void publishLive(IndexingStats stats, int pendingBatchSize) {
+        if (liveProgress == null) return;
+        liveProgress.publish(stats.totalFiles, stats.indexed, stats.skipped, stats.failed, pendingBatchSize);
     }
 }

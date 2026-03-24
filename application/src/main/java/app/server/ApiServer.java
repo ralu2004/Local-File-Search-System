@@ -6,6 +6,7 @@ import app.extractor.Extractor;
 import app.indexer.Indexer;
 import app.indexer.job.BackgroundIndexer;
 import app.indexer.job.IndexingJobSnapshot;
+import app.indexer.job.IndexingLiveProgress;
 import app.model.IndexRun;
 import app.search.SearchEngine;
 import app.search.query.QueryParser;
@@ -50,7 +51,7 @@ public class ApiServer implements AutoCloseable {
         app.post("/api/index/start", ctx -> {
             IndexStartRequest request = ctx.bodyAsClass(IndexStartRequest.class);
             validateStartRequest(request);
-            boolean started = backgroundIndexer.start(() -> buildIndexer(request));
+            boolean started = backgroundIndexer.start(live -> buildIndexer(request, live));
             if (!started) {
                 writeJson(ctx.status(409), new MessageResponse("Indexing job is already running."));
                 return;
@@ -95,7 +96,7 @@ public class ApiServer implements AutoCloseable {
         app.start(port);
     }
 
-    private Indexer buildIndexer(IndexStartRequest request) {
+    private Indexer buildIndexer(IndexStartRequest request, IndexingLiveProgress liveProgress) {
         String dbPath = request.dbPath() == null || request.dbPath().isBlank() ? null : request.dbPath();
         int maxFileSizeMb = request.maxFileSizeMb() <= 0 ? 10 : request.maxFileSizeMb();
         int previewLines = request.previewLines() <= 0 ? 3 : request.previewLines();
@@ -106,7 +107,7 @@ public class ApiServer implements AutoCloseable {
             Database db = dbPath != null ? new Database(dbPath) : new Database();
             Crawler crawler = new Crawler(java.nio.file.Path.of(request.root()), ignoreRules);
             Extractor extractor = new Extractor(previewLines, (long) maxFileSizeMb * 1024 * 1024);
-            return new Indexer(db, db, crawler, extractor, batchSize) {
+            return new Indexer(db, db, crawler, extractor, batchSize, liveProgress) {
                 @Override
                 public app.indexer.IndexReport run() {
                     try (db) {

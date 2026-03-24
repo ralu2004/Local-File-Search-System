@@ -7,24 +7,30 @@ import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 public class BackgroundIndexer implements AutoCloseable {
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private volatile IndexingJobSnapshot snapshot = new IndexingJobSnapshot(
-            IndexingJobStatus.IDLE, null, null, null, null
+            IndexingJobStatus.IDLE, null, null, null, null, null
     );
     private volatile CompletableFuture<IndexReport> currentJob;
 
-    public synchronized boolean start(Supplier<Indexer> indexerFactory) {
+    public synchronized boolean start(Function<IndexingLiveProgress, Indexer> indexerFactory) {
         if (isRunning()) return false;
 
+        IndexingLiveProgress live = new IndexingLiveProgress();
         snapshot = new IndexingJobSnapshot(
-                IndexingJobStatus.RUNNING, LocalDateTime.now(), null, snapshot.lastReport(), null
+                IndexingJobStatus.RUNNING,
+                LocalDateTime.now(),
+                null,
+                snapshot.lastReport(),
+                null,
+                live
         );
 
-        currentJob = CompletableFuture.supplyAsync(() -> indexerFactory.get().run(), executor)
+        currentJob = CompletableFuture.supplyAsync(() -> indexerFactory.apply(live).run(), executor)
                 .whenComplete((report, error) -> {
                     if (error == null) {
                         snapshot = new IndexingJobSnapshot(
@@ -32,6 +38,7 @@ public class BackgroundIndexer implements AutoCloseable {
                                 snapshot.startedAt(),
                                 LocalDateTime.now(),
                                 report,
+                                null,
                                 null
                         );
                         return;
@@ -42,7 +49,8 @@ public class BackgroundIndexer implements AutoCloseable {
                             snapshot.startedAt(),
                             LocalDateTime.now(),
                             snapshot.lastReport(),
-                            message
+                            message,
+                            null
                     );
                 });
         return true;

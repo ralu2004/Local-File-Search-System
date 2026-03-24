@@ -12,12 +12,22 @@ type IndexReport = {
   elapsed: string
 }
 
+type IndexingLiveProgress = {
+  totalFiles: number
+  indexed: number
+  skipped: number
+  failed: number
+  pendingInBatch: number
+  phase: string
+}
+
 type IndexingSnapshot = {
   status: IndexStatus
   startedAt: string | null
   finishedAt: string | null
   lastReport: IndexReport | null
   lastError: string | null
+  liveProgress: IndexingLiveProgress | null
 }
 
 type IndexRunRow = {
@@ -204,6 +214,12 @@ function highlightText(text: string, terms: string[], keyPrefix: string): ReactN
   return out.length ? <>{out}</> : text
 }
 
+function phaseLabel(phase: string | undefined): string {
+  const p = (phase ?? 'crawling').toLowerCase()
+  if (p === 'finalizing') return 'Finalizing index (writes, cleanup, optional optimize)…'
+  return 'Scanning files…'
+}
+
 function formatIsoDateTime(iso: string | null | undefined): string {
   if (!iso?.trim()) return '—'
   const d = new Date(iso.includes('T') ? iso : iso.replace(' ', 'T'))
@@ -275,12 +291,16 @@ function App() {
 
   useEffect(() => {
     void fetchIndexHistory()
+  }, [])
+
+  useEffect(() => {
+    void fetchStatus()
+    const ms = running ? 600 : 2200
     const timer = setInterval(() => {
       void fetchStatus()
-    }, 1500)
-    void fetchStatus()
+    }, ms)
     return () => clearInterval(timer)
-  }, [])
+  }, [running])
 
   async function fetchIndexHistory() {
     try {
@@ -441,7 +461,44 @@ function App() {
           </button>
         </form>
 
-        {indexMessage && <p className="message">{indexMessage}</p>}
+        {running && indexing?.liveProgress && (
+          <div className="index-progress" aria-busy="true">
+            <div className="index-progress-track">
+              <div className="index-progress-indicator" />
+            </div>
+            <p className="index-progress-phase">{phaseLabel(indexing.liveProgress.phase)}</p>
+            <ul className="index-progress-stats">
+              <li>
+                <strong>{indexing.liveProgress.totalFiles.toLocaleString()}</strong> scanned
+              </li>
+              <li>
+                <strong>{indexing.liveProgress.indexed.toLocaleString()}</strong> indexed
+              </li>
+              <li>
+                <strong>{indexing.liveProgress.skipped.toLocaleString()}</strong> skipped
+              </li>
+              <li>
+                <strong>{indexing.liveProgress.failed.toLocaleString()}</strong> failed
+              </li>
+              {indexing.liveProgress.pendingInBatch > 0 && (
+                <li>
+                  <strong>{indexing.liveProgress.pendingInBatch}</strong> queued in batch
+                </li>
+              )}
+            </ul>
+            {indexing.startedAt && (
+              <p className="index-progress-elapsed">
+                Elapsed so far — {formatElapsed((Date.now() - new Date(indexing.startedAt).getTime()) / 1000)}
+              </p>
+            )}
+          </div>
+        )}
+
+        {indexing?.status === 'COMPLETED' && indexing.lastReport ? (
+          <p className="message message-success">Indexing finished successfully.</p>
+        ) : indexMessage ? (
+          <p className="message">{indexMessage}</p>
+        ) : null}
 
         {indexing?.lastReport && (
           <div className="stats-grid">
@@ -454,7 +511,7 @@ function App() {
           </div>
         )}
 
-        {indexing?.lastError && <p className="error">{indexing.lastError}</p>}
+        {indexing?.status === 'FAILED' && indexing.lastError && <p className="error">{indexing.lastError}</p>}
 
         {latestCompletedRun?.finishedAt && (
           <div className="last-run-panel">
@@ -498,6 +555,32 @@ function App() {
             </p>
           )}
         </div>
+
+        <details className="search-query-help">
+          <summary>Search syntax & filters</summary>
+          <ul className="search-query-help-list">
+            <li>
+              <code>word</code> or <code>&quot;phrase&quot;</code> — full-text search in file names and content (combine with
+              filters below).
+            </li>
+            <li>
+              <code>name.ext</code> — if the whole query looks like a file name, it matches filename only.
+            </li>
+            <li>
+              <code>ext:java</code> — files with that extension (also <code>extension:md</code>).
+            </li>
+            <li>
+              <code>modified:2024-01-15</code> — modified after this date/time (use the same format as stored in DB,
+              e.g. ISO-like <code>2024-01-15T10:00:00</code> if needed).
+            </li>
+            <li>
+              <code>size:1048576</code> — file larger than this many <strong>bytes</strong> (example = 1 MiB).
+            </li>
+            <li>
+              Examples: <code>readme ext:md</code>, <code>config ext:json</code>, <code>todo size:500</code>.
+            </li>
+          </ul>
+        </details>
 
         <form className="search-row" onSubmit={runSearch}>
           <input
