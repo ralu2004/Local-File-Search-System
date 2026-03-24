@@ -30,6 +30,39 @@ type SearchResult = {
 
 const API_BASE = 'http://localhost:7070/api'
 
+function getFileTypeLabel(extension: string): string {
+  const ext = extension?.trim().toLowerCase()
+  if (!ext) return 'File'
+
+  const knownTypes: Record<string, string> = {
+    txt: 'Text Document',
+    md: 'Markdown Document',
+    json: 'JSON File',
+    xml: 'XML File',
+    html: 'HTML Document',
+    css: 'Style Sheet',
+    js: 'JavaScript File',
+    ts: 'TypeScript File',
+    java: 'Java Source File',
+    py: 'Python Script',
+    sql: 'SQL File',
+    yml: 'YAML File',
+    yaml: 'YAML File',
+    csv: 'CSV File',
+    pdf: 'PDF Document'
+  }
+
+  return knownTypes[ext] ?? `${ext.toUpperCase()} File`
+}
+
+function getFolderPath(pathValue: string): string {
+  if (!pathValue) return ''
+  const withoutScheme = pathValue.replace(/^file:\/+/, '')
+  const normalized = withoutScheme.replace(/\\/g, '/')
+  const lastSlash = normalized.lastIndexOf('/')
+  return lastSlash > 0 ? normalized.slice(0, lastSlash) : withoutScheme
+}
+
 function formatModifiedAt(value: unknown): string {
   if (value === null || value === undefined) return 'Unknown date'
 
@@ -272,10 +305,20 @@ function App() {
           {searchResults.map((result) => (
             <article key={result.path} className="result-card">
               <h3>{result.filename}</h3>
-              <p className="meta">
-                .{result.extension || 'none'} | {formatModifiedAt(result.modifiedAt)}
-              </p>
-              <p className="path">{result.path}</p>
+              <div className="meta-grid">
+                <p className="meta-item">
+                  <span className="meta-label">Type</span>
+                  <span className="meta-value">{getFileTypeLabel(result.extension)}</span>
+                </p>
+                <p className="meta-item">
+                  <span className="meta-label">Date modified</span>
+                  <span className="meta-value">{formatModifiedAt(result.modifiedAt)}</span>
+                </p>
+                <p className="meta-item meta-item-wide">
+                  <span className="meta-label">Folder</span>
+                  <span className="meta-value">{getFolderPath(result.path)}</span>
+                </p>
+              </div>
               <pre>{result.preview}</pre>
             </article>
           ))}
