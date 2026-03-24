@@ -234,6 +234,15 @@ pre {
   word-break: break-word;
 }
 
+.preview-snippet mark.search-hit,
+.result-card h3 .search-hit {
+  background: rgba(186, 230, 253, 0.55);
+  color: inherit;
+  padding: 0 0.12em;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
 @media (max-width: 800px) {
   .form-grid {
     grid-template-columns: 1fr;
