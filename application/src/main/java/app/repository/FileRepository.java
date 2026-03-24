@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public interface FileRepository {
@@ -18,6 +19,7 @@ public interface FileRepository {
     int batchDelete(Set<Path> paths) throws SQLException;
     List<SearchResult> search(Query query, int limit) throws SQLException;
     LocalDateTime getModifiedAt(Path path) throws SQLException;
+    Map<Path, LocalDateTime> getAllModifiedAtByPath() throws SQLException;
     FileRecord getByPath(Path path) throws SQLException;
     List<FileRecord> getAll() throws SQLException;
     List<FileRecord> getByExtension(String extension) throws SQLException;

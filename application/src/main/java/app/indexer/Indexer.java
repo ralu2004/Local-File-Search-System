@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class Indexer {
@@ -48,11 +49,18 @@ public class Indexer {
         int totalFiles = 0, indexed = 0, failed = 0, skipped = 0, deleted = 0;
         Set<Path> paths = new HashSet<>();
         List<ExtractedRecord> pendingBatch = new ArrayList<>(BATCH_SIZE);
+        Map<Path, LocalDateTime> storedModifiedByPath = Map.of();
+
+        try {
+            storedModifiedByPath = repository.getAllModifiedAtByPath();
+        } catch (SQLException e) {
+            System.err.println("Failed to preload modified times: " + e.getMessage());
+        }
 
         for (FileRecord record : (Iterable<FileRecord>) crawler.crawl()::iterator) {
             totalFiles++;
             paths.add(record.path());
-            switch (indexFile(record, pendingBatch)) {
+            switch (indexFile(record, pendingBatch, storedModifiedByPath)) {
                 case QUEUED -> {
                     if (pendingBatch.size() >= BATCH_SIZE) {
                         try {
@@ -95,9 +103,10 @@ public class Indexer {
         return report;
     }
 
-    private IndexResult indexFile(FileRecord record, List<ExtractedRecord> pendingBatch) {
+    private IndexResult indexFile(FileRecord record, List<ExtractedRecord> pendingBatch,
+                                  Map<Path, LocalDateTime> storedModifiedByPath) {
         try {
-            LocalDateTime storedModifiedAt = repository.getModifiedAt(record.path());
+            LocalDateTime storedModifiedAt = storedModifiedByPath.get(record.path());
             if (storedModifiedAt != null && storedModifiedAt.equals(record.modifiedAt())) {
                 return IndexResult.SKIPPED;
             }
@@ -107,7 +116,7 @@ public class Indexer {
         } catch (FileTooLargeException e) {
             System.err.println(e.getMessage());
             return IndexResult.SKIPPED;
-        } catch (SQLException e) {
+        } catch (RuntimeException e) {
             System.err.println("Failed to index file: " + record.path() + " — " + e.getMessage());
             return IndexResult.FAILED;
         }

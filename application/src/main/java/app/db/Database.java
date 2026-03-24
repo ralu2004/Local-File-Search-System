@@ -14,7 +14,9 @@ import java.sql.*;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class Database implements FileRepository, IndexRunRepository, AutoCloseable {
@@ -267,6 +269,21 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
                 return modifiedAt == null ? null : LocalDateTime.parse(modifiedAt);
             }
         }
+    }
+
+    @Override
+    public Map<Path, LocalDateTime> getAllModifiedAtByPath() throws SQLException {
+        Map<Path, LocalDateTime> modifiedAtByPath = new HashMap<>();
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement("SELECT path, modified_at FROM files");
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                String modifiedAt = rs.getString("modified_at");
+                if (modifiedAt == null) continue;
+                modifiedAtByPath.put(Path.of(rs.getString("path")), LocalDateTime.parse(modifiedAt));
+            }
+        }
+        return modifiedAtByPath;
     }
 
     @Override
