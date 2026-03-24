@@ -67,6 +67,7 @@ graph TD
     subgraph Core["Core Library"]
         Crawler["Crawler"]
         Indexer["Indexer"]
+        BackgroundIndexer["Background Indexer"]
         Extractor["Extractor"]
         Search["Search Engine"]
         QueryParser["Query Parser"]
@@ -75,6 +76,7 @@ graph TD
     end
 
     Crawler -->|pushes FileRecords| Indexer
+    BackgroundIndexer -->|starts async run| Indexer
     Indexer -->|delegates extraction| Extractor
     Extractor -->|returns ExtractedRecord| Indexer
     Indexer -->|writes via FileRepository| DB
@@ -89,6 +91,7 @@ graph TD
 | **Crawler** | Traverses the filesystem and emits `FileRecord` objects to the indexing flow |
 | **Extractor** | Reads file content and produces text and preview strings |
 | **Indexer** | Performs incremental checks and batch writes extracted records to storage |
+| **Background Indexer** | Runs `Indexer` asynchronously and exposes job status snapshots for GUI/API polling |
 | **Search Engine** | Accepts user queries and returns ranked results |
 | **Query Parser** | Translates raw input strings into typed `Query` objects |
 | **Database** | Implements `FileRepository` and `IndexRunRepository` — the only component with storage knowledge |
@@ -142,6 +145,26 @@ classDiagram
         +run() IndexReport
     }
 
+    class BackgroundIndexer {
+        +start(Supplier~Indexer~) boolean
+        +getSnapshot() IndexingJobSnapshot
+        +isRunning() boolean
+    }
+
+    class IndexingJobSnapshot {
+        <<record>>
+        +status IndexingJobStatus
+        +lastReport IndexReport
+    }
+
+    class IndexingJobStatus {
+        <<enumeration>>
+        IDLE
+        RUNNING
+        COMPLETED
+        FAILED
+    }
+
     class SearchEngine {
         -FileRepository repository
         -QueryParser parser
@@ -173,6 +196,9 @@ classDiagram
     Indexer ..> IndexRunRepository
     Indexer ..> Crawler
     Indexer ..> Extractor
+    BackgroundIndexer ..> Indexer
+    BackgroundIndexer ..> IndexingJobSnapshot
+    IndexingJobSnapshot ..> IndexingJobStatus
     SearchEngine ..> FileRepository
     SearchEngine ..> QueryParser
     QueryParser ..> Query
