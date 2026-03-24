@@ -13,12 +13,16 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class Indexer {
 
-    private enum IndexResult { INDEXED, SKIPPED, FAILED }
+    private static final int BATCH_SIZE = 250;
+
+    private enum IndexResult { QUEUED, SKIPPED, FAILED }
 
     private final Crawler crawler;
     private final Extractor extractor;
@@ -43,12 +47,23 @@ public class Indexer {
 
         int totalFiles = 0, indexed = 0, failed = 0, skipped = 0, deleted = 0;
         Set<Path> paths = new HashSet<>();
+        List<ExtractedRecord> pendingBatch = new ArrayList<>(BATCH_SIZE);
 
         for (FileRecord record : (Iterable<FileRecord>) crawler.crawl()::iterator) {
             totalFiles++;
             paths.add(record.path());
-            switch (indexFile(record)) {
-                case INDEXED -> indexed++;
+            switch (indexFile(record, pendingBatch)) {
+                case QUEUED -> {
+                    if (pendingBatch.size() >= BATCH_SIZE) {
+                        try {
+                            indexed += flushBatch(pendingBatch);
+                        } catch (SQLException e) {
+                            failed += pendingBatch.size();
+                            System.err.println("Failed to write batch: " + e.getMessage());
+                            pendingBatch.clear();
+                        }
+                    }
+                }
                 case SKIPPED -> skipped++;
                 case FAILED  -> failed++;
             }
@@ -58,10 +73,14 @@ public class Indexer {
         }
 
         try {
+            if (!pendingBatch.isEmpty()) {
+                indexed += flushBatch(pendingBatch);
+            }
             deleted = repository.batchDelete(paths);
             repository.optimizeFts();
         } catch (SQLException e) {
-            System.err.println("Something went wrong while deleting files: " + e.getMessage());
+            System.err.println("Index finalization failed: " + e.getMessage());
+            failed += pendingBatch.size();
         }
 
         Duration elapsed = Duration.between(start, Instant.now());
@@ -76,15 +95,15 @@ public class Indexer {
         return report;
     }
 
-    private IndexResult indexFile(FileRecord record) {
+    private IndexResult indexFile(FileRecord record, List<ExtractedRecord> pendingBatch) {
         try {
             LocalDateTime storedModifiedAt = repository.getModifiedAt(record.path());
             if (storedModifiedAt != null && storedModifiedAt.equals(record.modifiedAt())) {
                 return IndexResult.SKIPPED;
             }
             ExtractedRecord extracted = extractor.extractWithPreview(record);
-            repository.upsert(record, extracted.content(), extracted.preview());
-            return IndexResult.INDEXED;
+            pendingBatch.add(extracted);
+            return IndexResult.QUEUED;
         } catch (FileTooLargeException e) {
             System.err.println(e.getMessage());
             return IndexResult.SKIPPED;
@@ -92,5 +111,12 @@ public class Indexer {
             System.err.println("Failed to index file: " + record.path() + " — " + e.getMessage());
             return IndexResult.FAILED;
         }
+    }
+
+    private int flushBatch(List<ExtractedRecord> pendingBatch) throws SQLException {
+        int batchSize = pendingBatch.size();
+        repository.batchUpsert(pendingBatch);
+        pendingBatch.clear();
+        return batchSize;
     }
 }
