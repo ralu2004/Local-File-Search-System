@@ -5,8 +5,6 @@ import app.model.*;
 import app.repository.FileRepository;
 import app.repository.IndexRunRepository;
 import app.search.query.Query;
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -23,20 +21,14 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     private static final String FILE_COLUMNS = "path, filename, extension, size_bytes, created_at, modified_at";
 
-    private final HikariDataSource dataSource;
+    private final String jdbcUrl;
     private final QueryBuilder queryBuilder;
 
     public Database(String dbPath, QueryBuilder queryBuilder) throws IOException, SQLException {
         Path path = Paths.get(dbPath);
         Files.createDirectories(path.getParent());
 
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:sqlite:" + dbPath + "?journal_mode=WAL&busy_timeout=5000");
-        config.setMaximumPoolSize(4);
-        config.setMinimumIdle(1);
-        config.setConnectionTimeout(5000);
-
-        this.dataSource = new HikariDataSource(config);
+        this.jdbcUrl = "jdbc:sqlite:" + dbPath + "?journal_mode=WAL&busy_timeout=5000";
         this.queryBuilder = queryBuilder;
         initializeSchema();
     }
@@ -50,7 +42,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
     }
 
     private void initializeSchema() throws SQLException {
-        try (Connection conn = dataSource.getConnection();
+        try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute("""
                     CREATE TABLE IF NOT EXISTS files (
@@ -91,7 +83,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public void upsert(FileRecord record, String content, String preview) throws SQLException {
-        try (Connection conn = dataSource.getConnection()) {
+        try (Connection conn = getConnection()) {
             conn.setAutoCommit(false);
             try {
                 String statement = """
@@ -138,7 +130,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public void batchUpsert(List<ExtractedRecord> records) throws SQLException {
-        try (Connection conn = dataSource.getConnection()) {
+        try (Connection conn = getConnection()) {
             conn.setAutoCommit(false);
             try {
                 String filesStmt = """
@@ -191,7 +183,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public void delete(Path path) throws SQLException {
-        try (Connection conn = dataSource.getConnection()) {
+        try (Connection conn = getConnection()) {
             conn.setAutoCommit(false);
             try {
                 String statement = "DELETE FROM files WHERE path = ?";
@@ -217,7 +209,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public int batchDelete(Set<Path> paths) throws SQLException {
-        try (Connection conn = dataSource.getConnection()) {
+        try (Connection conn = getConnection()) {
             conn.setAutoCommit(false);
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TEMP TABLE IF NOT EXISTS crawled_paths (path TEXT PRIMARY KEY);");
@@ -260,7 +252,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public LocalDateTime getModifiedAt(Path path) throws SQLException {
-        try (Connection conn = dataSource.getConnection();
+        try (Connection conn = getConnection();
              PreparedStatement stmt = conn.prepareStatement("SELECT modified_at FROM files WHERE path = ?")) {
             stmt.setString(1, path.toString());
             try (ResultSet rs = stmt.executeQuery()) {
@@ -274,7 +266,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
     @Override
     public Map<Path, LocalDateTime> getAllModifiedAtByPath() throws SQLException {
         Map<Path, LocalDateTime> modifiedAtByPath = new HashMap<>();
-        try (Connection conn = dataSource.getConnection();
+        try (Connection conn = getConnection();
              PreparedStatement stmt = conn.prepareStatement("SELECT path, modified_at FROM files");
              ResultSet rs = stmt.executeQuery()) {
             while (rs.next()) {
@@ -304,7 +296,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public long startIndexing(LocalDateTime startedAt) throws SQLException {
-        try (Connection conn = dataSource.getConnection()) {
+        try (Connection conn = getConnection()) {
             String statement = "INSERT INTO index_runs (started_at) VALUES (?)";
             try (PreparedStatement stmt = conn.prepareStatement(statement, Statement.RETURN_GENERATED_KEYS)) {
                 stmt.setString(1, startedAt.toString());
@@ -319,7 +311,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public void endIndexing(long runId, IndexReport report) throws SQLException {
-        try (Connection conn = dataSource.getConnection()) {
+        try (Connection conn = getConnection()) {
             conn.setAutoCommit(false);
             try {
                 String statement = """
@@ -355,7 +347,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public void optimizeFts() throws SQLException {
-        try (Connection conn = dataSource.getConnection();
+        try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute("INSERT INTO files_fts(files_fts) VALUES('optimize');");
         }
@@ -363,7 +355,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     private List<FileRecord> queryFiles(String sql, Object... params) throws SQLException {
         List<FileRecord> files = new ArrayList<>();
-        try (Connection conn = dataSource.getConnection();
+        try (Connection conn = getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < params.length; i++) {
                 stmt.setObject(i + 1, params[i]);
@@ -379,7 +371,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     private List<SearchResult> queryResults(String sql, List<Object> params) throws SQLException {
         List<SearchResult> results = new ArrayList<>();
-        try (Connection conn = dataSource.getConnection();
+        try (Connection conn = getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < params.size(); i++) {
                 stmt.setObject(i + 1, params.get(i));
@@ -395,7 +387,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     private List<IndexRun> queryIndexRuns(String sql, Object... params) throws SQLException {
         List<IndexRun> runs = new ArrayList<>();
-        try (Connection conn = dataSource.getConnection();
+        try (Connection conn = getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < params.length; i++) {
                 stmt.setObject(i + 1, params[i]);
@@ -449,8 +441,12 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
         );
     }
 
+    private Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(jdbcUrl);
+    }
+
     @Override
     public void close() {
-        dataSource.close();
+        // No-op: this implementation relies on plain JDBC connections.
     }
 }
