@@ -3,6 +3,7 @@ package app.indexer;
 import app.crawler.Crawler;
 import app.extractor.Extractor;
 import app.extractor.FileTooLargeException;
+import app.model.ExtractedRecord;
 import app.model.FileRecord;
 import app.repository.FileRepository;
 import app.repository.IndexRunRepository;
@@ -81,9 +82,8 @@ public class Indexer {
             if (storedModifiedAt != null && storedModifiedAt.equals(record.modifiedAt())) {
                 return IndexResult.SKIPPED;
             }
-            String content = extractor.extract(record);
-            String preview = extractor.preview(record);
-            repository.upsert(record, content, preview);
+            ExtractedRecord extracted = extractor.extractWithPreview(record);
+            repository.upsert(record, extracted.content(), extracted.preview());
             return IndexResult.INDEXED;
         } catch (FileTooLargeException e) {
             System.err.println(e.getMessage());

@@ -1,6 +1,7 @@
 package app.extractor;
 
 import app.model.FileRecord;
+import app.model.ExtractedRecord;
 
 import java.io.*;
 import java.nio.charset.CharsetDecoder;
@@ -32,6 +33,15 @@ public class Extractor {
 
     public String preview(FileRecord record) {
         return String.join(System.lineSeparator(), readLines(record, previewLines));
+    }
+
+    public ExtractedRecord extractWithPreview(FileRecord record) {
+        List<String> lines = readLines(record, Integer.MAX_VALUE);
+        String content = String.join(System.lineSeparator(), lines);
+
+        int previewLimit = Math.min(previewLines, lines.size());
+        String preview = String.join(System.lineSeparator(), lines.subList(0, previewLimit));
+        return new ExtractedRecord(record, content, preview);
     }
 
     private List<String> readLines(FileRecord record, int maxLines) {
