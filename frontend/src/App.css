@@ -1,0 +1,226 @@
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 36px 24px 48px;
+}
+
+header h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: linear-gradient(95deg, #0f4c81 0%, #3a7fb8 45%, #69aee0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 10px 26px rgba(105, 174, 224, 0.22);
+}
+
+.subtitle {
+  color: #2c5f88;
+  opacity: 0.86;
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+.panel {
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.52), rgba(224, 242, 255, 0.45));
+  border: 1px solid rgba(147, 210, 255, 0.55);
+  border-radius: 18px;
+  padding: 20px;
+  margin: 18px 0;
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 14px 34px rgba(104, 164, 212, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.panel-header h2 {
+  margin: 0;
+}
+
+.status-badge {
+  font-size: 0.72rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border: 1px solid transparent;
+}
+
+.status-badge.idle {
+  color: #24547a;
+  background: rgba(147, 210, 255, 0.28);
+  border-color: rgba(105, 174, 224, 0.42);
+}
+
+.status-badge.running {
+  color: #0b4d6f;
+  background: rgba(125, 211, 252, 0.45);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.status-badge.completed {
+  color: #155e75;
+  background: rgba(153, 246, 228, 0.48);
+  border-color: rgba(45, 212, 191, 0.42);
+}
+
+.status-badge.failed {
+  color: #8f4f22;
+  background: rgba(254, 215, 170, 0.52);
+  border-color: rgba(251, 146, 60, 0.38);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 0.84rem;
+  color: #1f5075;
+}
+
+.form-grid button {
+  grid-column: span 2;
+  margin-top: 8px;
+}
+
+input,
+button {
+  border-radius: 12px;
+  border: 1px solid rgba(125, 211, 252, 0.5);
+  background: rgba(255, 255, 255, 0.56);
+  color: #1a4565;
+  padding: 11px 12px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+input:focus {
+  border-color: rgba(56, 189, 248, 0.72);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.22);
+}
+
+button {
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  color: #f6fbff;
+  background: linear-gradient(100deg, #3d88be, #5fa9dc 58%, #7ec8ea 100%);
+  box-shadow: 0 10px 24px rgba(95, 169, 220, 0.35);
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.message {
+  color: #2a638f;
+  opacity: 0.95;
+  margin-top: 10px;
+}
+
+.error {
+  color: #c96c2f;
+}
+
+.stats-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  font-size: 0.9rem;
+}
+
+.stats-grid div {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(147, 210, 255, 0.5);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.search-row {
+  display: grid;
+  grid-template-columns: 1fr 110px 120px;
+  gap: 10px;
+}
+
+.results {
+  margin-top: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.result-card {
+  border: 1px solid rgba(147, 210, 255, 0.5);
+  border-radius: 14px;
+  padding: 14px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.58), rgba(224, 242, 255, 0.46));
+}
+
+.result-card h3 {
+  margin: 0;
+}
+
+.meta {
+  margin: 6px 0;
+  color: #3a739e;
+  font-size: 0.8rem;
+}
+
+.path {
+  font-size: 0.76rem;
+  color: #2f638f;
+  word-break: break-word;
+}
+
+pre {
+  margin: 10px 0 0;
+  background: rgba(241, 250, 255, 0.82);
+  border: 1px solid rgba(147, 210, 255, 0.45);
+  border-radius: 10px;
+  padding: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 800px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid button {
+    grid-column: span 1;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .search-row {
+    grid-template-columns: 1fr;
+  }
+}
