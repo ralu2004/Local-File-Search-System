@@ -74,7 +74,7 @@ graph TD
         QueryBuilder["Query Builder"]
     end
 
-    Crawler -->|yields FileRecords| Indexer
+    Crawler -->|pushes FileRecords| Indexer
     Indexer -->|delegates extraction| Extractor
     Extractor -->|returns ExtractedRecord| Indexer
     Indexer -->|writes via FileRepository| DB
@@ -86,9 +86,9 @@ graph TD
 
 | Component | Responsibility |
 |-----------|----------------|
-| **Crawler** | Traverses the filesystem and produces `FileRecord` objects |
+| **Crawler** | Traverses the filesystem and emits `FileRecord` objects to the indexing flow |
 | **Extractor** | Reads file content and produces text and preview strings |
-| **Indexer** | Orchestrates the pipeline from crawling to storage |
+| **Indexer** | Performs incremental checks and batch writes extracted records to storage |
 | **Search Engine** | Accepts user queries and returns ranked results |
 | **Query Parser** | Translates raw input strings into typed `Query` objects |
 | **Database** | Implements `FileRepository` and `IndexRunRepository` — the only component with storage knowledge |
@@ -105,8 +105,9 @@ classDiagram
     class FileRepository {
         <<interface>>
         +upsert(FileRecord, String, String)
+        +batchUpsert(List~ExtractedRecord~)
         +search(Query, int) List~SearchResult~
-        +getModifiedAt(Path) LocalDateTime
+        +getAllModifiedAtByPath() Map~Path,LocalDateTime~
     }
 
     class IndexRunRepository {
@@ -126,7 +127,7 @@ classDiagram
     class Crawler {
         -Path root
         -List~PathMatcher~ matchers
-        +crawl() Stream~FileRecord~
+        +crawl(Consumer~FileRecord~)
     }
 
     class Extractor {
@@ -137,9 +138,8 @@ classDiagram
     }
 
     class Indexer {
-        -int threadCount
+        -int batchSize
         +run() IndexReport
-        +runAsync() CompletableFuture~IndexReport~
     }
 
     class SearchEngine {
