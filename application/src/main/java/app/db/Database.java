@@ -70,6 +70,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
                         id              INTEGER PRIMARY KEY AUTOINCREMENT,
                         started_at      TEXT,
                         finished_at     TEXT,
+                        root_path       TEXT,
                         total_files     INTEGER,
                         indexed         INTEGER,
                         skipped         INTEGER,
@@ -295,11 +296,12 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
     }
 
     @Override
-    public long startIndexing(LocalDateTime startedAt) throws SQLException {
+    public long startIndexing(LocalDateTime startedAt, String rootPath) throws SQLException {
         try (Connection conn = getConnection()) {
-            String statement = "INSERT INTO index_runs (started_at) VALUES (?)";
+            String statement = "INSERT INTO index_runs (started_at, root_path) VALUES (?, ?)";
             try (PreparedStatement stmt = conn.prepareStatement(statement, Statement.RETURN_GENERATED_KEYS)) {
                 stmt.setString(1, startedAt.toString());
+                stmt.setString(2, rootPath);
                 stmt.executeUpdate();
                 try (ResultSet keys = stmt.getGeneratedKeys()) {
                     if (keys.next()) return keys.getLong(1);
@@ -433,6 +435,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
                 rs.getLong("id"),
                 startedAt,
                 finishedAt,
+                rs.getString("root_path"),
                 rs.getInt("total_files"),
                 rs.getInt("indexed"),
                 rs.getInt("skipped"),

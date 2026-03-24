@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface IndexRunRepository {
-    long startIndexing(LocalDateTime startedAt) throws SQLException;
+    long startIndexing(LocalDateTime startedAt, String rootPath) throws SQLException;
     void endIndexing(long runId, IndexReport report) throws SQLException;
     List<IndexRun> getHistory() throws SQLException;
 }

@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import './App.css'
 
 type IndexStatus = 'IDLE' | 'RUNNING' | 'COMPLETED' | 'FAILED'
@@ -18,6 +18,19 @@ type IndexingSnapshot = {
   finishedAt: string | null
   lastReport: IndexReport | null
   lastError: string | null
+}
+
+type IndexRunRow = {
+  id: number
+  startedAt: string | null
+  finishedAt: string | null
+  rootPath: string | null
+  totalFiles: number
+  indexed: number
+  skipped: number
+  failed: number
+  deleted: number
+  elapsedSeconds: number
 }
 
 type SearchResult = {
@@ -191,6 +204,13 @@ function highlightText(text: string, terms: string[], keyPrefix: string): ReactN
   return out.length ? <>{out}</> : text
 }
 
+function formatIsoDateTime(iso: string | null | undefined): string {
+  if (!iso?.trim()) return '—'
+  const d = new Date(iso.includes('T') ? iso : iso.replace(' ', 'T'))
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleString()
+}
+
 function formatElapsed(value: unknown): string {
   if (value === null || value === undefined) return '—'
 
@@ -217,6 +237,10 @@ function App() {
   const [previewLines, setPreviewLines] = useState(3)
   const [batchSize, setBatchSize] = useState(250)
 
+  const [activeSection, setActiveSection] = useState<'index' | 'search'>('search')
+  const [indexHistory, setIndexHistory] = useState<IndexRunRow[]>([])
+  const indexStatusRef = useRef<IndexStatus | null>(null)
+
   const [indexing, setIndexing] = useState<IndexingSnapshot | null>(null)
   const [indexMessage, setIndexMessage] = useState('')
 
@@ -229,6 +253,11 @@ function App() {
   const highlightTerms = useMemo(() => buildHighlightTerms(activeSearchQuery), [activeSearchQuery])
 
   const running = indexing?.status === 'RUNNING'
+
+  const latestCompletedRun = useMemo(
+    () => indexHistory.find((r) => r.finishedAt) ?? indexHistory[0] ?? null,
+    [indexHistory]
+  )
 
   const statusClass = useMemo(() => {
     if (!indexing) return 'status-badge idle'
@@ -245,12 +274,25 @@ function App() {
   }, [indexing])
 
   useEffect(() => {
+    void fetchIndexHistory()
     const timer = setInterval(() => {
       void fetchStatus()
     }, 1500)
     void fetchStatus()
     return () => clearInterval(timer)
   }, [])
+
+  async function fetchIndexHistory() {
+    try {
+      const response = await fetch(`${API_BASE}/index/history?limit=10`)
+      const payload = (await response.json()) as IndexRunRow[] | { message: string }
+      if (!response.ok) return
+      if (!Array.isArray(payload)) return
+      setIndexHistory(payload)
+    } catch {
+      /* keep previous history */
+    }
+  }
 
   async function fetchStatus() {
     try {
@@ -260,7 +302,13 @@ function App() {
         setIndexMessage((payload as { message: string }).message || 'Failed to fetch indexing status.')
         return
       }
-      setIndexing(payload as IndexingSnapshot)
+      const snap = payload as IndexingSnapshot
+      const prev = indexStatusRef.current
+      indexStatusRef.current = snap.status
+      setIndexing(snap)
+      if ((snap.status === 'COMPLETED' || snap.status === 'FAILED') && prev === 'RUNNING') {
+        void fetchIndexHistory()
+      }
     } catch {
       setIndexMessage('Cannot reach backend at http://localhost:7070. Start server mode first.')
     }
@@ -319,10 +367,29 @@ function App() {
 
   return (
     <main className="container">
-      <header>
-        <h1>Local File Search</h1>
+      <header className="app-header">
+        <div className="app-header-top">
+          <h1>Local File Search</h1>
+          <nav className="app-nav" aria-label="Primary">
+            <button
+              type="button"
+              className={activeSection === 'index' ? 'nav-tab active' : 'nav-tab'}
+              onClick={() => setActiveSection('index')}
+            >
+              Index
+            </button>
+            <button
+              type="button"
+              className={activeSection === 'search' ? 'nav-tab active' : 'nav-tab'}
+              onClick={() => setActiveSection('search')}
+            >
+              Search
+            </button>
+          </nav>
+        </div>
       </header>
 
+      {activeSection === 'index' && (
       <section className="panel">
         <div className="panel-header">
           <h2>Indexing</h2>
@@ -388,12 +455,50 @@ function App() {
         )}
 
         {indexing?.lastError && <p className="error">{indexing.lastError}</p>}
-      </section>
 
+        {latestCompletedRun?.finishedAt && (
+          <div className="last-run-panel">
+            <h3 className="last-run-heading">Last saved index run (database)</h3>
+            <div className="last-run-grid">
+              <span className="last-run-k">Finished</span>
+              <span className="last-run-v">{formatIsoDateTime(latestCompletedRun.finishedAt)}</span>
+              <span className="last-run-k">Root</span>
+              <span className="last-run-v">{latestCompletedRun.rootPath?.trim() || '—'}</span>
+              <span className="last-run-k">Totals</span>
+              <span className="last-run-v">
+                {latestCompletedRun.totalFiles} scanned · {latestCompletedRun.indexed} indexed ·{' '}
+                {latestCompletedRun.skipped} skipped · {latestCompletedRun.failed} failed ·{' '}
+                {latestCompletedRun.deleted} removed
+              </span>
+              <span className="last-run-k">Duration</span>
+              <span className="last-run-v">{formatElapsed(latestCompletedRun.elapsedSeconds)}</span>
+            </div>
+          </div>
+        )}
+      </section>
+      )}
+
+      {activeSection === 'search' && (
       <section className="panel">
         <div className="panel-header">
           <h2>Search</h2>
         </div>
+
+        <div className="search-context">
+          <p className="search-context-main">
+            <span className="search-context-label">Indexed folder</span>{' '}
+            <span className="search-context-path">
+              {latestCompletedRun?.rootPath?.trim() || 'Run indexing to record a corpus root in the database.'}
+            </span>
+          </p>
+          {latestCompletedRun?.finishedAt && (
+            <p className="search-context-sub">
+              Last index: {formatIsoDateTime(latestCompletedRun.finishedAt)} ·{' '}
+              {latestCompletedRun.indexed} files indexed · {formatElapsed(latestCompletedRun.elapsedSeconds)}
+            </p>
+          )}
+        </div>
+
         <form className="search-row" onSubmit={runSearch}>
           <input
             value={query}
@@ -447,6 +552,7 @@ function App() {
           ))}
         </div>
       </section>
+      )}
     </main>
   )
 }

@@ -6,6 +6,7 @@ import app.extractor.Extractor;
 import app.indexer.Indexer;
 import app.indexer.job.BackgroundIndexer;
 import app.indexer.job.IndexingJobSnapshot;
+import app.model.IndexRun;
 import app.search.SearchEngine;
 import app.search.query.QueryParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -60,6 +61,22 @@ public class ApiServer implements AutoCloseable {
         app.get("/api/index/status", ctx -> {
             IndexingJobSnapshot snapshot = backgroundIndexer.getSnapshot();
             writeJson(ctx, snapshot);
+        });
+
+        app.get("/api/index/history", ctx -> {
+            String dbPath = ctx.queryParam("db");
+            int limit = parsePositiveInt(ctx.queryParam("limit"), 20);
+            int capped = Math.min(Math.max(limit, 1), 100);
+            try (Database db = dbPath != null && !dbPath.isBlank() ? new Database(dbPath) : new Database()) {
+                List<IndexRun> runs = db.getHistory();
+                List<IndexRunResponse> body = runs.stream()
+                        .limit(capped)
+                        .map(IndexRunResponse::from)
+                        .toList();
+                writeJson(ctx, body);
+            } catch (SQLException | IOException e) {
+                writeJson(ctx.status(500), new MessageResponse("Failed to load index history: " + e.getMessage()));
+            }
         });
 
         app.get("/api/search", ctx -> {
@@ -150,4 +167,34 @@ public class ApiServer implements AutoCloseable {
     public record MessageResponse(String message) {}
 
     public record HealthResponse(String status) {}
+
+    public record IndexRunResponse(
+            long id,
+            String startedAt,
+            String finishedAt,
+            String rootPath,
+            int totalFiles,
+            int indexed,
+            int skipped,
+            int failed,
+            int deleted,
+            double elapsedSeconds
+    ) {
+        static IndexRunResponse from(IndexRun run) {
+            var elapsed = run.elapsed();
+            double elapsedSeconds = elapsed.getSeconds() + elapsed.getNano() / 1_000_000_000.0;
+            return new IndexRunResponse(
+                    run.id(),
+                    run.startedAt() != null ? run.startedAt().toString() : null,
+                    run.finishedAt() != null ? run.finishedAt().toString() : null,
+                    run.rootPath(),
+                    run.totalFiles(),
+                    run.indexed(),
+                    run.skipped(),
+                    run.failed(),
+                    run.deleted(),
+                    elapsedSeconds
+            );
+        }
+    }
 }

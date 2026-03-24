@@ -51,6 +51,10 @@ public class Crawler {
             "*.min.css"
     );
 
+    public Path getRoot() {
+        return root;
+    }
+
     public Crawler(Path root, List<String> ignoreRules) {
         this.root = root;
         List<String> allRules = new ArrayList<>(DEFAULT_IGNORE_RULES);

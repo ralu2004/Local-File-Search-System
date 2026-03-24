@@ -7,6 +7,7 @@ public record IndexRun(
         long id,
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
+        String rootPath,
         int totalFiles,
         int indexed,
         int skipped,

@@ -50,7 +50,9 @@ public class Indexer {
         Instant start = Instant.now();
         long runId = 0;
         try {
-            runId = indexRunRepository.startIndexing(LocalDateTime.now());
+            runId = indexRunRepository.startIndexing(
+                    LocalDateTime.now(),
+                    crawler.getRoot().toAbsolutePath().normalize().toString());
         } catch (SQLException e) {
             System.err.println("Failed to start index run tracking: " + e.getMessage());
         }
