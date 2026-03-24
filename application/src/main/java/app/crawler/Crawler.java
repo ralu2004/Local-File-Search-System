@@ -8,7 +8,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 import app.util.FileTypes;
 
@@ -24,7 +24,7 @@ public class Crawler {
                 .toList();
     }
 
-    public Stream<FileRecord> crawl() {
+    public void crawl(Consumer<FileRecord> sink) {
         if (!Files.exists(root)) {
             throw new IllegalArgumentException("Root directory does not exist: " + root);
         }
@@ -32,10 +32,8 @@ public class Crawler {
             throw new IllegalArgumentException("Root path is not a directory: " + root);
         }
 
-        Stream.Builder<FileRecord> builder = Stream.builder();
-
         try {
-            Files.walkFileTree(root, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE,
+            Files.walkFileTree(root, EnumSet.noneOf(FileVisitOption.class), Integer.MAX_VALUE,
                     new SimpleFileVisitor<>() {
 
                         @Override
@@ -47,7 +45,7 @@ public class Crawler {
                         @Override
                         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                             if (!isIgnoredFile(file)) {
-                                builder.accept(buildRecord(file, attrs));
+                                sink.accept(buildRecord(file, attrs));
                             }
                             return FileVisitResult.CONTINUE;
                         }
@@ -65,8 +63,6 @@ public class Crawler {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to crawl directory: " + root, e);
         }
-
-        return builder.build();
     }
 
     private FileRecord buildRecord(Path file, BasicFileAttributes attrs) {

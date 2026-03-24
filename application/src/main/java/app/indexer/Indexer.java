@@ -46,53 +46,49 @@ public class Indexer {
             System.err.println("Failed to start index run tracking: " + e.getMessage());
         }
 
-        int totalFiles = 0, indexed = 0, failed = 0, skipped = 0, deleted = 0;
+        IndexingStats stats = new IndexingStats();
+        int deleted = 0;
         Set<Path> paths = new HashSet<>();
         List<ExtractedRecord> pendingBatch = new ArrayList<>(BATCH_SIZE);
-        Map<Path, LocalDateTime> storedModifiedByPath = Map.of();
+        final Map<Path, LocalDateTime> storedModifiedByPath = preloadStoredModifiedByPath();
 
-        try {
-            storedModifiedByPath = repository.getAllModifiedAtByPath();
-        } catch (SQLException e) {
-            System.err.println("Failed to preload modified times: " + e.getMessage());
-        }
-
-        for (FileRecord record : (Iterable<FileRecord>) crawler.crawl()::iterator) {
-            totalFiles++;
+        crawler.crawl(record -> {
+            int currentTotal = ++stats.totalFiles;
             paths.add(record.path());
             switch (indexFile(record, pendingBatch, storedModifiedByPath)) {
                 case QUEUED -> {
                     if (pendingBatch.size() >= BATCH_SIZE) {
                         try {
-                            indexed += flushBatch(pendingBatch);
+                            stats.indexed += flushBatch(pendingBatch);
                         } catch (SQLException e) {
-                            failed += pendingBatch.size();
+                            stats.failed += pendingBatch.size();
                             System.err.println("Failed to write batch: " + e.getMessage());
                             pendingBatch.clear();
                         }
                     }
                 }
-                case SKIPPED -> skipped++;
-                case FAILED  -> failed++;
+                case SKIPPED -> stats.skipped++;
+                case FAILED  -> stats.failed++;
             }
-            if (totalFiles % 100 == 0) {
-                System.out.println("Progress: " + totalFiles + " files processed...");
+            if (currentTotal % 100 == 0) {
+                System.out.println("Progress: " + currentTotal + " files processed...");
             }
-        }
+        });
 
         try {
             if (!pendingBatch.isEmpty()) {
-                indexed += flushBatch(pendingBatch);
+                stats.indexed += flushBatch(pendingBatch);
             }
             deleted = repository.batchDelete(paths);
             repository.optimizeFts();
         } catch (SQLException e) {
             System.err.println("Index finalization failed: " + e.getMessage());
-            failed += pendingBatch.size();
+            stats.failed += pendingBatch.size();
         }
 
         Duration elapsed = Duration.between(start, Instant.now());
-        IndexReport report = new IndexReport(totalFiles, indexed, skipped, failed, deleted, elapsed);
+        IndexReport report = new IndexReport(
+                stats.totalFiles, stats.indexed, stats.skipped, stats.failed, deleted, elapsed);
 
         try {
             indexRunRepository.endIndexing(runId, report);
@@ -127,5 +123,14 @@ public class Indexer {
         repository.batchUpsert(pendingBatch);
         pendingBatch.clear();
         return batchSize;
+    }
+
+    private Map<Path, LocalDateTime> preloadStoredModifiedByPath() {
+        try {
+            return repository.getAllModifiedAtByPath();
+        } catch (SQLException e) {
+            System.err.println("Failed to preload modified times: " + e.getMessage());
+            return Map.of();
+        }
     }
 }
