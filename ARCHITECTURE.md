@@ -1,107 +1,164 @@
-# Local File Search System - Architecture Overview
+# Local File Search System Architecture
 
-This document describes the architecture of the Local Search Engine, following the guidelines of the C4 model. It aims to provide a clear understanding of the system's structure, responsibilities, and boundaries.
+This document presents the architecture of the Local File Search System using the C4 model.  
+
+## Scope And Notation
+
+- **System**: the Local File Search System as a whole
+- **Container**: a separately executable unit or persistent data store
+- **Component**: a major building block inside a container or shared runtime
+- **Class**: selected code-level structures used to illustrate the design
+
+Legend:
+- boxes = software systems / containers / components
+- cylinders = persistent data stores
+- arrows = main communication or dependency direction
 
 ---
 
 ## 1. System Context (Level 1)
 
-The Local File Search Engine is a tool that runs entirely on the user's machine, indexing files and enabling fast content and metadata search.
+At the highest level, the system enables a user to index a local folder and search its contents and metadata efficiently on their own machine.
 
 ```mermaid
 graph TD
-    User("👤 User")
+    User["User"]
+    System["Local File Search System"]
+    FS["Local Filesystem"]
 
-    subgraph Machine["User's Machine"]
-        Engine["Local File Search Engine"]
-        FS["Local Filesystem"]
-    end
-
-    User -->|uses| Engine
-    Engine -->|reads from| FS
+    User -->|indexes folders, runs searches, reviews results| System
+    System -->|reads file metadata and content| FS
 ```
 
-| Actor / System | Role |
-|----------------|------|
-| **User** | Performs searches, triggers indexing, configures runtime options |
-| **Local Filesystem** | Source of all indexed data — files, metadata, directory structure |
-| **SQLite (DBMS)** | Embedded database storing indexed content and metadata |
+### Context Summary
+
+| Entity | Role |
+|---|---|
+| `User` | Starts indexing, configures options, runs queries, inspects results |
+| `Local File Search System` | Crawls files, extracts searchable content, stores indexes, serves searches |
+| `Local Filesystem` | External source of files, paths, timestamps, and contents |
 
 ---
 
 ## 2. Containers (Level 2)
 
+The system is composed of a small number of local containers. The most important boundary at this level is between user-facing clients and the Java backend services that execute indexing and search logic.
+
 ```mermaid
 graph TD
-    User("👤 User")
+    User["User"]
+    FS["Local Filesystem"]
 
-    subgraph Machine["User's Machine"]
-        CLI["CLI Application\n[Java Process]"]
-        GUI["GUI Application\n[JavaScript + REST API]"]
-        Core["Core Library\n[Java Library]"]
-        DB[("SQLite Database\n[index.db]")]
+    subgraph System["Local File Search System"]
+        GUI["Desktop GUI / Renderer
+[Electron + React + TypeScript]"]
+        API["Local API Server
+[Java + Javalin]"]
+        CLI["CLI Application
+[Java + picocli]"]
+        DB[("SQLite Database
+[SQLite + FTS5]")]
     end
 
-    User -->|uses| CLI
     User -->|uses| GUI
-    CLI -->|delegates to| Core
-    GUI -->|HTTP requests to| Core
-    Core -->|reads/writes| DB
+    User -->|uses| CLI
+    GUI -->|HTTP/JSON on localhost| API
+    API -->|reads/writes index| DB
+    CLI -->|reads/writes index| DB
+    API -->|reads files during indexing| FS
+    CLI -->|reads files during indexing| FS
 ```
 
+### Container Responsibilities
+
 | Container | Technology | Responsibility |
-|-----------|------------|----------------|
-| **CLI Application** | Java + picocli | Parses commands and delegates to Core Library |
-| **GUI Application** | JavaScript | Visual frontend communicating with Core via a local REST API |
-| **Core Library** | Java | All domain logic — crawling, indexing, searching, and database access |
-| **SQLite Database** | SQLite (FTS5) | Persistent storage of file metadata, content, and indexing history |
+|---|---|---|
+| `Desktop GUI / Renderer` | Electron + React + TypeScript | Presents indexing and search screens, calls the local API, renders progress and results |
+| `Local API Server` | Java + Javalin | Exposes endpoints for indexing, indexing status/history, and search |
+| `CLI Application` | Java + picocli | Provides command-line indexing and search without the GUI |
+| `SQLite Database` | SQLite with FTS5 | Stores file metadata, searchable text, previews, and index run history |
+
+### Why this structure?
+
+- The GUI can evolve independently from the indexing and search logic.
+- The CLI and API server reuse the same domain logic instead of duplicating it.
+- SQLite is an implementation detail hidden behind repository interfaces and query-building code.
+- A future web frontend or different client could reuse the existing local API without changing the indexing internals.
 
 ---
 
 ## 3. Components (Level 3)
 
-Components of the **Core Library**. The library is designed to be independent of any frontend.
+The following diagrams show the component structure from two complementary perspectives: orchestration and domain flow.
+
+### 3.1 Backend Orchestration View
 
 ```mermaid
 graph TD
-    subgraph Core["Core Library"]
-        Crawler["Crawler"]
+    subgraph Backend["Java Backend Runtime"]
+        Main["Main"]
+        ApiServer["ApiServer"]
+        Cli["CLI"]
+        BgIndexer["BackgroundIndexer"]
+        SearchEngine["SearchEngine"]
         Indexer["Indexer"]
-        BackgroundIndexer["Background Indexer"]
-        Extractor["Extractor"]
-        Search["Search Engine"]
-        QueryParser["Query Parser"]
-        DB["Database"]
-        QueryBuilder["Query Builder"]
+        Database["Database"]
     end
 
-    Crawler -->|pushes FileRecords| Indexer
-    BackgroundIndexer -->|starts async run| Indexer
-    Indexer -->|delegates extraction| Extractor
-    Extractor -->|returns ExtractedRecord| Indexer
-    Indexer -->|writes via FileRepository| DB
-    Search -->|parses input| QueryParser
-    QueryParser -->|returns Query| Search
-    Search -->|reads via FileRepository| DB
-    DB -->|builds SQL| QueryBuilder
+    Main -->|starts server mode| ApiServer
+    Main -->|starts CLI mode| Cli
+    ApiServer -->|creates/runs| BgIndexer
+    ApiServer -->|executes search| SearchEngine
+    Cli -->|executes indexing| Indexer
+    Cli -->|executes search| SearchEngine
+    BgIndexer -->|runs asynchronously| Indexer
+    SearchEngine -->|queries through repositories| Database
+    Indexer -->|stores records and history| Database
 ```
 
+### 3.2 Indexing And Search Flow View
+
+```mermaid
+graph TD
+    subgraph SharedLogic["Shared Backend Components"]
+        Crawler["Crawler"]
+        Extractor["Extractor"]
+        Indexer["Indexer"]
+        Search["SearchEngine"]
+        Parser["QueryParser"]
+        DB["Database"]
+        QB["QueryBuilder"]
+    end
+
+    Crawler -->|emits FileRecord| Indexer
+    Indexer -->|extract content + preview| Extractor
+    Indexer -->|persist metadata, preview, history| DB
+    Search -->|parse user query| Parser
+    Search -->|delegate query execution| DB
+    DB -->|build SQL from Query| QB
+```
+
+### Component Responsibilities
+
 | Component | Responsibility |
-|-----------|----------------|
-| **Crawler** | Traverses the filesystem and emits `FileRecord` objects to the indexing flow |
-| **Extractor** | Reads file content and produces text and preview strings |
-| **Indexer** | Performs incremental checks and batch writes extracted records to storage |
-| **Background Indexer** | Runs `Indexer` asynchronously and exposes job status snapshots for GUI/API polling |
-| **Search Engine** | Accepts user queries and returns ranked results |
-| **Query Parser** | Translates raw input strings into typed `Query` objects |
-| **Database** | Implements `FileRepository` and `IndexRunRepository` — the only component with storage knowledge |
-| **Query Builder** | Constructs SQL from `Query` objects, internal to the `db` package |
+|---|---|
+| `Main` | Chooses entry mode: local API server or CLI |
+| `ApiServer` | Defines REST endpoints, validates request data, maps JSON to backend calls |
+| `CLI` | Parses commands/options and invokes backend operations directly |
+| `BackgroundIndexer` | Runs indexing asynchronously and exposes job snapshots for polling |
+| `Crawler` | Walks the local directory tree and produces `FileRecord` metadata |
+| `Extractor` | Reads file content and generates stored preview snippets |
+| `Indexer` | Coordinates incremental indexing, batching, deletion handling, and run statistics |
+| `SearchEngine` | Converts user input into a query and retrieves matching results |
+| `QueryParser` | Interprets query syntax such as text terms and metadata filters |
+| `Database` | Central persistence component; implements file and index-run repositories |
+| `QueryBuilder` | Converts parsed queries into SQLite/FTS SQL |
 
 ---
 
 ## 4. Classes (Level 4)
 
-Key classes and interfaces. This section reflects the current implementation and will evolve across iterations.
+The following class diagram focuses on the most important code-level relationships rather than attempting to show every class in the codebase.
 
 ```mermaid
 classDiagram
@@ -110,18 +167,18 @@ classDiagram
         +upsert(FileRecord, String, String)
         +batchUpsert(List~ExtractedRecord~)
         +search(Query, int) List~SearchResult~
-        +getAllModifiedAtByPath() Map~Path,LocalDateTime~
+        +getAllModifiedAtByPath() Map~Path, LocalDateTime~
     }
 
     class IndexRunRepository {
         <<interface>>
-        +startIndexing(LocalDateTime) long
+        +startIndexing(LocalDateTime, String) long
         +endIndexing(long, IndexReport)
         +getHistory() List~IndexRun~
     }
 
     class Database {
-        -HikariDataSource dataSource
+        -String jdbcUrl
         -QueryBuilder queryBuilder
         +Database()
         +Database(String)
@@ -130,14 +187,13 @@ classDiagram
     class Crawler {
         -Path root
         -List~PathMatcher~ matchers
+        +getRoot() Path
         +crawl(Consumer~FileRecord~)
     }
 
     class Extractor {
         -int previewLines
         -long maxFileSize
-        +extract(FileRecord) String
-        +preview(FileRecord) String
     }
 
     class Indexer {
@@ -146,7 +202,7 @@ classDiagram
     }
 
     class BackgroundIndexer {
-        +start(Supplier~Indexer~) boolean
+        +start(Function~IndexingLiveProgress, Indexer~) boolean
         +getSnapshot() IndexingJobSnapshot
         +isRunning() boolean
     }
@@ -154,15 +210,11 @@ classDiagram
     class IndexingJobSnapshot {
         <<record>>
         +status IndexingJobStatus
+        +startedAt LocalDateTime
+        +finishedAt LocalDateTime
         +lastReport IndexReport
-    }
-
-    class IndexingJobStatus {
-        <<enumeration>>
-        IDLE
-        RUNNING
-        COMPLETED
-        FAILED
+        +lastError String
+        +liveProgress IndexingLiveProgress
     }
 
     class SearchEngine {
@@ -177,17 +229,33 @@ classDiagram
 
     class Query {
         <<record>>
-        +QueryType type
-        +String value
-        +Map~String,String~ filters
+        +type QueryType
+        +value String
+        +filters Map~String, String~
     }
 
-    class QueryType {
-        <<enumeration>>
-        FULLTEXT
-        FILENAME
-        METADATA
-        MIXED
+    class SearchResult {
+        <<record>>
+        +path Path
+        +filename String
+        +extension String
+        +preview String
+        +modifiedAt LocalDateTime
+        +sizeBytes Long
+    }
+
+    class IndexRun {
+        <<record>>
+        +id long
+        +startedAt LocalDateTime
+        +finishedAt LocalDateTime
+        +rootPath String
+        +totalFiles int
+        +indexed int
+        +skipped int
+        +failed int
+        +deleted int
+        +elapsed Duration
     }
 
     Database ..|> FileRepository
@@ -198,39 +266,96 @@ classDiagram
     Indexer ..> Extractor
     BackgroundIndexer ..> Indexer
     BackgroundIndexer ..> IndexingJobSnapshot
-    IndexingJobSnapshot ..> IndexingJobStatus
     SearchEngine ..> FileRepository
     SearchEngine ..> QueryParser
     QueryParser ..> Query
-    Query ..> QueryType
 ```
 
-### Model
+### Important Domain Records
 
-| Class | Type | Key Fields |
-|-------|------|------------|
-| `FileRecord` | record | `path`, `filename`, `extension`, `sizeBytes`, `createdAt`, `modifiedAt` |
-| `SearchResult` | record | `path`, `filename`, `extension`, `preview`, `modifiedAt` |
-| `ExtractedRecord` | record | `record`, `content`, `preview` |
-| `IndexReport` | record | `totalFiles`, `indexed`, `skipped`, `failed`, `deleted`, `elapsed` |
-| `IndexRun` | record | `id`, `startedAt`, `finishedAt`, `totalFiles`, `indexed`, `elapsed` |
-| `QueryType` | enum | `FULLTEXT`, `FILENAME`, `METADATA`, `MIXED` |
-
-## Database
-
-The database contains three logical areas:
-
-- **File metadata** — path, filename, extension, size, timestamps
-- **Full-text indexed content** — filename and file content searchable via FTS5
-- **Indexing history** — per-run statistics including file counts and elapsed time
+| Type | Purpose |
+|---|---|
+| `FileRecord` | File metadata discovered during crawling |
+| `ExtractedRecord` | File metadata plus extracted content and preview |
+| `SearchResult` | DTO returned by CLI/API search operations |
+| `IndexReport` | Summary of a completed indexing execution |
+| `IndexRun` | Persisted historical record of a past indexing run |
+| `IndexingJobSnapshot` | Current or last-known background indexing state for the GUI |
 
 ---
 
-## Key Design Decisions
+## Runtime View
 
-- **`FileRepository` and `IndexRunRepository` interfaces** — storage can be swapped without touching business logic
-- **`QueryParser`** — query syntax evolves independently of search execution
-- **`Crawler`** — traversal strategy changes without affecting the indexing pipeline
-- **`Extractor`** — new file types can be supported without changing the indexer
-- **SQLite + FTS5** — embedded database with built-in full-text search, no server required
-- **GUI via REST API** — frontend is fully decoupled from the Core Library
+The runtime behavior of indexing is important because the GUI should not block during a long-running indexing operation; instead, it polls live state from the backend.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant GUI as Desktop GUI
+    participant API as ApiServer
+    participant BG as BackgroundIndexer
+    participant IDX as Indexer
+    participant FS as Local Filesystem
+    participant DB as SQLite Database
+
+    User->>GUI: Start indexing
+    GUI->>API: POST /api/index/start
+    API->>BG: start(indexerFactory)
+    BG->>IDX: run asynchronously
+    IDX->>FS: crawl files and read content
+    IDX->>DB: write metadata, previews, full-text data
+    loop while running
+        GUI->>API: GET /api/index/status
+        API-->>GUI: snapshot + live progress
+    end
+    IDX->>DB: persist index run history
+    BG-->>API: completed snapshot
+    GUI->>API: GET /api/index/history
+    API-->>GUI: last index runs
+```
+
+---
+
+## Deployment View
+
+Although the system is local-first, it still has a meaningful deployment structure.
+
+```mermaid
+graph TD
+    subgraph UserMachine["User Machine"]
+        Electron["Electron Desktop App"]
+        JavaServer["Java API Server Process"]
+        JavaCli["Java CLI Process"]
+        Sqlite[("index.db")]
+        Files["Indexed Folders"]
+    end
+
+    Electron -->|localhost HTTP| JavaServer
+    JavaServer --> Sqlite
+    JavaServer --> Files
+    JavaCli --> Sqlite
+    JavaCli --> Files
+```
+
+Observations:
+- The desktop app and API server are deployed separately even when started on the same machine.
+- The database is embedded and local, which simplifies setup and removes the need for an external database server.
+- The filesystem is not owned by the system; it is an external dependency that the system reads.
+
+---
+
+## Key Architectural Decisions
+
+- **Local-first architecture**: all essential functionality runs on the user machine without remote infrastructure.
+- **Two clients, one backend core**: the CLI and GUI both reuse the same Java domain logic.
+- **API boundary for the GUI**: the frontend depends on stable HTTP endpoints rather than directly invoking Java code.
+- **SQLite + FTS5**: appropriate for local full-text search because it has a low setup cost and portable persistence.
+- **Repository abstraction**: keeps indexing and search logic decoupled from SQLite details.
+- **Asynchronous indexing**: avoids blocking the GUI and enables progress reporting.
+- **Persisted index history**: supports user feedback and future operational/reporting features.
+
+---
+
+## Conclusion
+
+The proposed architecture separates user-facing clients, backend orchestration, domain logic, and persistence in a way that keeps responsibilities clear and supports incremental evolution. This structure allows the search engine to grow in features and usability while limiting the impact of change across the system.
