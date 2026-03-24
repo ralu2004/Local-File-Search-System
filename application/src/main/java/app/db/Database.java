@@ -19,6 +19,8 @@ import java.util.Set;
 
 public class Database implements FileRepository, IndexRunRepository, AutoCloseable {
 
+    private static final String FILE_COLUMNS = "path, filename, extension, size_bytes, created_at, modified_at";
+
     private final HikariDataSource dataSource;
     private final QueryBuilder queryBuilder;
 
@@ -269,18 +271,18 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public FileRecord getByPath(Path path) throws SQLException {
-        List<FileRecord> results = queryFiles("SELECT * FROM files WHERE path = ?", path.toString());
+        List<FileRecord> results = queryFiles("SELECT " + FILE_COLUMNS + " FROM files WHERE path = ?", path.toString());
         return results.isEmpty() ? null : results.getFirst();
     }
 
     @Override
     public List<FileRecord> getAll() throws SQLException {
-        return queryFiles("SELECT * FROM files");
+        return queryFiles("SELECT " + FILE_COLUMNS + " FROM files");
     }
 
     @Override
     public List<FileRecord> getByExtension(String extension) throws SQLException {
-        return queryFiles("SELECT * FROM files WHERE extension = ?", extension);
+        return queryFiles("SELECT " + FILE_COLUMNS + " FROM files WHERE extension = ?", extension);
     }
 
     @Override
