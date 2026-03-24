@@ -30,6 +30,46 @@ type SearchResult = {
 
 const API_BASE = 'http://localhost:7070/api'
 
+function formatModifiedAt(value: unknown): string {
+  if (value === null || value === undefined) return 'Unknown date'
+
+  const trimmed = String(value).trim()
+  if (!trimmed) return 'Unknown date'
+
+  const parts = trimmed.split(',').map((part) => part.trim())
+  if (parts.length >= 6 && parts.every((part) => /^-?\d+$/.test(part))) {
+    const year = Number(parts[0])
+    const monthIndex = Number(parts[1]) - 1
+    const day = Number(parts[2])
+    const hour = Number(parts[3])
+    const minute = Number(parts[4])
+    const second = Number(parts[5])
+    const nano = parts[6] ? Number(parts[6]) : 0
+    const ms = Math.floor(nano / 1_000_000)
+    const fromCommaDate = new Date(year, monthIndex, day, hour, minute, second, ms)
+    if (!Number.isNaN(fromCommaDate.getTime())) {
+      return fromCommaDate.toLocaleString()
+    }
+  }
+
+  const numeric = Number(trimmed)
+  if (!Number.isNaN(numeric)) {
+    const asMs = numeric < 1_000_000_000_000 ? numeric * 1000 : numeric
+    const fromNumeric = new Date(asMs)
+    if (!Number.isNaN(fromNumeric.getTime())) {
+      return fromNumeric.toLocaleString()
+    }
+  }
+
+  const normalized = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T')
+  const parsed = new Date(normalized)
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleString()
+  }
+
+  return String(value)
+}
+
 function App() {
   const [root, setRoot] = useState('D:\\UTCN\\An3\\Sem2\\SD\\Local-File-Search-System')
   const [ignoreRules, setIgnoreRules] = useState('*.log')
@@ -233,7 +273,7 @@ function App() {
             <article key={result.path} className="result-card">
               <h3>{result.filename}</h3>
               <p className="meta">
-                .{result.extension || 'none'} | {new Date(result.modifiedAt).toLocaleString()}
+                .{result.extension || 'none'} | {formatModifiedAt(result.modifiedAt)}
               </p>
               <p className="path">{result.path}</p>
               <pre>{result.preview}</pre>
