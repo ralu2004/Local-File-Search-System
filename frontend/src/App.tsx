@@ -327,7 +327,7 @@ function App() {
                   <span className="meta-label">Size</span>
                   <span className="meta-value">{formatFileSize(result.sizeBytes)}</span>
                 </p>
-                <p className="meta-item meta-item-wide">
+                <p className="meta-item">
                   <span className="meta-label">Date modified</span>
                   <span className="meta-value">{formatModifiedAt(result.modifiedAt)}</span>
                 </p>
