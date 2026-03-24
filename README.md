@@ -90,6 +90,20 @@ The crawler always ignores common system/build directories (for example `node_mo
 
 ---
 
+## Incremental indexing verification
+
+Use this quick flow to validate that only changed files are re-indexed:
+
+1. Run an initial index on a test directory.
+2. Modify one indexed text file, add one new file, and delete one existing indexed file.
+3. Run indexing again on the same directory.
+4. Check the report:
+   - `Skipped` should include unchanged files.
+   - `Indexed` should reflect only changed/new files.
+   - `Deleted` should include files removed from disk.
+
+---
+
 ## Architecture
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for a full C4 model of the system design.
