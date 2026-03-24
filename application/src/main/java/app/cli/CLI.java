@@ -139,7 +139,10 @@ public class CLI implements Runnable {
                 System.out.println("\nFound " + results.size() + " result(s) for: \"" + query + "\"");
                 for (SearchResult result : results) {
                     System.out.println("─────────────────────────────────");
-                    System.out.println(" " + result.filename() + "  [" + result.extension() + "]  Modified: " + result.modifiedAt().toLocalDate());
+                    String sizeStr = result.sizeBytes() != null
+                            ? formatBytes(result.sizeBytes())
+                            : "—";
+                    System.out.println(" " + result.filename() + "  [" + result.extension() + "]  Modified: " + result.modifiedAt().toLocalDate() + "  Size: " + sizeStr);
                     System.out.println(" Path: " + result.path());
                     System.out.println(" Preview:");
                     for (String line : result.preview().split(System.lineSeparator())) {
@@ -151,6 +154,15 @@ public class CLI implements Runnable {
                 System.err.println("Error: " + e.getMessage());
             }
         }
+    }
+
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        double kb = bytes / 1024.0;
+        if (kb < 1024) return String.format("%.1f KB", kb);
+        double mb = kb / 1024.0;
+        if (mb < 1024) return String.format("%.1f MB", mb);
+        return String.format("%.2f GB", mb / 1024.0);
     }
 
     public static void main(String[] args) {

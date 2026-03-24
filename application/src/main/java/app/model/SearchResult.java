@@ -8,5 +8,6 @@ public record SearchResult(
         String filename,
         String extension,
         String preview,
-        LocalDateTime modifiedAt
+        LocalDateTime modifiedAt,
+        Long sizeBytes
 ) {}

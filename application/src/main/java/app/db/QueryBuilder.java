@@ -22,14 +22,14 @@ class QueryBuilder {
                         FROM files_fts
                         WHERE files_fts MATCH ?
                     )
-                    SELECT m.path, m.filename, m.preview, f.extension, f.modified_at
+                    SELECT m.path, m.filename, m.preview, f.extension, f.modified_at, f.size_bytes
                     FROM matched m
                     JOIN files f ON f.path = m.path
                     """);
             params.add(sanitizeQuery(query.value()));
         } else {
             sql.append("""
-                    SELECT fts.path, fts.filename, fts.preview, f.extension, f.modified_at
+                    SELECT fts.path, fts.filename, fts.preview, f.extension, f.modified_at, f.size_bytes
                     FROM files f
                     JOIN files_fts fts ON fts.path = f.path
                     """);

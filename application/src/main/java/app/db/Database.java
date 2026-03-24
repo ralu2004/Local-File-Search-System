@@ -418,7 +418,8 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
                 rs.getString("filename"),
                 rs.getString("extension"),
                 rs.getString("preview"),
-                LocalDateTime.parse(rs.getString("modified_at"))
+                LocalDateTime.parse(rs.getString("modified_at")),
+                rs.getObject("size_bytes", Long.class)
         );
     }
 

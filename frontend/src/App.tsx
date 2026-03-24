@@ -26,6 +26,7 @@ type SearchResult = {
   extension: string
   preview: string
   modifiedAt: string
+  sizeBytes?: number | null
 }
 
 const API_BASE = 'http://localhost:7070/api'
@@ -101,6 +102,18 @@ function formatModifiedAt(value: unknown): string {
   }
 
   return String(value)
+}
+
+function formatFileSize(bytes: unknown): string {
+  if (bytes === null || bytes === undefined) return '—'
+  const n = typeof bytes === 'number' ? bytes : Number(bytes)
+  if (!Number.isFinite(n) || n < 0) return '—'
+  if (n < 1024) return `${n} B`
+  const kb = n / 1024
+  if (kb < 1024) return `${kb.toFixed(1)} KB`
+  const mb = kb / 1024
+  if (mb < 1024) return `${mb.toFixed(1)} MB`
+  return `${(mb / 1024).toFixed(2)} GB`
 }
 
 function App() {
@@ -311,6 +324,10 @@ function App() {
                   <span className="meta-value">{getFileTypeLabel(result.extension)}</span>
                 </p>
                 <p className="meta-item">
+                  <span className="meta-label">Size</span>
+                  <span className="meta-value">{formatFileSize(result.sizeBytes)}</span>
+                </p>
+                <p className="meta-item meta-item-wide">
                   <span className="meta-label">Date modified</span>
                   <span className="meta-value">{formatModifiedAt(result.modifiedAt)}</span>
                 </p>
