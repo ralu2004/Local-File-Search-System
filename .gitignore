@@ -1,0 +1,7 @@
+.idea/
+**/.idea/
+.searchengine/
+application/.searchengine/
+frontend/node_modules/
+*.log
+application/target/
