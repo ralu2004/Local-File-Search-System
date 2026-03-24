@@ -256,8 +256,15 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
 
     @Override
     public LocalDateTime getModifiedAt(Path path) throws SQLException {
-        List<FileRecord> results = queryFiles("SELECT * FROM files WHERE path = ?", path.toString());
-        return results.isEmpty() ? null : results.getFirst().modifiedAt();
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement("SELECT modified_at FROM files WHERE path = ?")) {
+            stmt.setString(1, path.toString());
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) return null;
+                String modifiedAt = rs.getString("modified_at");
+                return modifiedAt == null ? null : LocalDateTime.parse(modifiedAt);
+            }
+        }
     }
 
     @Override
