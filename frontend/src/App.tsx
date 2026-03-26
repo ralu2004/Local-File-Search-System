@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import './App.css'
 
 type IndexStatus = 'IDLE' | 'RUNNING' | 'COMPLETED' | 'FAILED'
@@ -266,6 +266,11 @@ function App() {
   const [searchMessage, setSearchMessage] = useState('')
   const [activeSearchQuery, setActiveSearchQuery] = useState('')
 
+  const searchDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchAbortRef = useRef<AbortController | null>(null)
+  const searchRequestIdRef = useRef(0)
+  const [, setIsSearching] = useState(false)
+
   const highlightTerms = useMemo(() => buildHighlightTerms(activeSearchQuery), [activeSearchQuery])
 
   const running = indexing?.status === 'RUNNING'
@@ -334,6 +339,85 @@ function App() {
     }
   }
 
+  const doSearch = useCallback(
+    async (nextQuery: string) => {
+    const q = nextQuery.trim()
+
+    searchAbortRef.current?.abort()
+    searchAbortRef.current = null
+
+    if (!q) {
+      searchRequestIdRef.current += 1
+      setSearchResults([])
+      setActiveSearchQuery('')
+      setSearchMessage('')
+      setIsSearching(false)
+      return
+    }
+
+    const requestId = ++searchRequestIdRef.current
+    const controller = new AbortController()
+    searchAbortRef.current = controller
+
+    setIsSearching(true)
+    setSearchMessage('')
+
+    try {
+      const params = new URLSearchParams({ q, limit: String(limit) })
+      const response = await fetch(`${API_BASE}/search?${params.toString()}`, { signal: controller.signal })
+      const payload = await response.json().catch(() => ({} as unknown))
+
+      if (requestId !== searchRequestIdRef.current) return
+
+      if (!response.ok) {
+        setSearchMessage((payload as { message?: string }).message || 'Search failed.')
+        setSearchResults([])
+        return
+      }
+
+      const results = payload as SearchResult[]
+      setActiveSearchQuery(q)
+      setSearchResults(results)
+      setSearchMessage(results.length === 0 ? 'No results.' : '')
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      if (requestId !== searchRequestIdRef.current) return
+      setSearchMessage('Failed to search. Ensure backend server is running.')
+      setSearchResults([])
+    } finally {
+      if (requestId === searchRequestIdRef.current) setIsSearching(false)
+    }
+    },
+    [limit]
+  )
+
+  useEffect(() => {
+    if (activeSection !== 'search') {
+      searchAbortRef.current?.abort()
+      if (searchDebounceTimerRef.current) {
+        clearTimeout(searchDebounceTimerRef.current)
+        searchDebounceTimerRef.current = null
+      }
+      return
+    }
+
+    if (searchDebounceTimerRef.current) {
+      clearTimeout(searchDebounceTimerRef.current)
+      searchDebounceTimerRef.current = null
+    }
+
+    searchDebounceTimerRef.current = setTimeout(() => {
+      void doSearch(query)
+    }, 250)
+
+    return () => {
+      if (searchDebounceTimerRef.current) {
+        clearTimeout(searchDebounceTimerRef.current)
+        searchDebounceTimerRef.current = null
+      }
+    }
+  }, [query, activeSection, doSearch])
+
   async function startIndexing(event: FormEvent) {
     event.preventDefault()
     setIndexMessage('')
@@ -366,23 +450,7 @@ function App() {
 
   async function runSearch(event: FormEvent) {
     event.preventDefault()
-    setSearchMessage('')
-    try {
-      const params = new URLSearchParams({ q: query, limit: String(limit) })
-      const response = await fetch(`${API_BASE}/search?${params.toString()}`)
-      const payload = await response.json()
-      if (!response.ok) {
-        setSearchMessage((payload as { message: string }).message || 'Search failed.')
-        return
-      }
-      setActiveSearchQuery(query)
-      setSearchResults(payload as SearchResult[])
-      if ((payload as SearchResult[]).length === 0) {
-        setSearchMessage('No results.')
-      }
-    } catch {
-      setSearchMessage('Failed to search. Ensure backend server is running.')
-    }
+    void doSearch(query)
   }
 
   return (
