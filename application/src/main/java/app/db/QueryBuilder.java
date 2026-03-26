@@ -18,7 +18,13 @@ class QueryBuilder {
         if (hasFTS) {
             sql.append("""
                     WITH matched AS (
-                        SELECT path, filename, preview, rank
+                        SELECT path,
+                               filename,
+                               COALESCE(
+                                   snippet(files_fts, 2, '', '', '...', 24),
+                                   files_fts.preview
+                               ) AS preview,
+                               rank
                         FROM files_fts
                         WHERE files_fts MATCH ?
                     )
