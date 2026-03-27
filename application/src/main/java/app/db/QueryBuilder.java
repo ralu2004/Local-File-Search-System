@@ -32,7 +32,7 @@ class QueryBuilder {
                     FROM matched m
                     JOIN files f ON f.path = m.path
                     """);
-            params.add(sanitizeQuery(query.value()));
+            params.add(toFtsPrefixQuery(query.value()));
         } else {
             sql.append("""
                     SELECT fts.path, fts.filename, fts.preview, f.extension, f.modified_at, f.size_bytes
@@ -75,10 +75,86 @@ class QueryBuilder {
         }
     }
 
-    private String sanitizeQuery(String query) {
-        if (query.matches(".*[.\\-+*()^\":].*")) {
-            return "\"" + query.replace("\"", "\"\"") + "\"";
+    private String toFtsPrefixQuery(String input) {
+        if (input == null) return "";
+        String query = input.trim();
+        if (query.isEmpty()) return "";
+
+        List<String> out = new ArrayList<>();
+        StringBuilder token = new StringBuilder();
+        boolean inQuotes = false;
+
+        for (int i = 0; i < query.length(); i++) {
+            char c = query.charAt(i);
+            if (c == '"') {
+                if (token.length() > 0) {
+                    out.add(transformToken(token.toString(), false));
+                    token.setLength(0);
+                }
+                inQuotes = !inQuotes;
+                out.add("\"");
+                continue;
+            }
+
+            if (!inQuotes && Character.isWhitespace(c)) {
+                if (token.length() > 0) {
+                    out.add(transformToken(token.toString(), false));
+                    token.setLength(0);
+                }
+                continue;
+            }
+
+            token.append(c);
         }
-        return query;
+
+        if (token.length() > 0) {
+            out.add(transformToken(token.toString(), inQuotes));
+        }
+
+        StringBuilder rebuilt = new StringBuilder();
+        boolean openQuoteJustAppended = false;
+        for (String part : out) {
+            if (part.equals("\"")) {
+                if (openQuoteJustAppended) {
+                    rebuilt.append("\"");
+                    openQuoteJustAppended = false;
+                } else {
+                    if (!rebuilt.isEmpty() && rebuilt.charAt(rebuilt.length() - 1) != ' ') rebuilt.append(' ');
+                    rebuilt.append("\"");
+                    openQuoteJustAppended = true;
+                }
+                continue;
+            }
+
+            if (!rebuilt.isEmpty() && rebuilt.charAt(rebuilt.length() - 1) != '"' && rebuilt.charAt(rebuilt.length() - 1) != ' ') {
+                rebuilt.append(' ');
+            }
+            rebuilt.append(part);
+        }
+
+        return rebuilt.toString().trim();
+    }
+
+    private String transformToken(String rawToken, boolean inQuotes) {
+        if (rawToken == null) return "";
+        String token = rawToken.trim();
+        if (token.isEmpty()) return "";
+
+        if (inQuotes) {
+            return token.replace("\"", "\"\"");
+        }
+
+        String upper = token.toUpperCase();
+        if (upper.equals("AND") || upper.equals("OR") || upper.equals("NOT") || upper.equals("NEAR")) {
+            return upper;
+        }
+
+        if (token.endsWith("*")) return token;
+
+        if (token.matches("[A-Za-z0-9_]+")) {
+            return token + "*";
+        }
+
+        return "\"" + token.replace("\"", "\"\"") + "\"";
     }
 }
