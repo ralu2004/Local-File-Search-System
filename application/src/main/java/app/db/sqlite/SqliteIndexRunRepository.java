@@ -5,7 +5,6 @@ import app.model.IndexRun;
 import app.repository.IndexRunRepository;
 
 import java.sql.*;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -79,31 +78,11 @@ public final class SqliteIndexRunRepository implements IndexRunRepository {
             }
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    runs.add(mapIndexRun(rs));
+                    runs.add(SqliteRowMappers.indexRun(rs));
                 }
             }
         }
         return runs;
-    }
-
-    private IndexRun mapIndexRun(ResultSet rs) throws SQLException {
-        LocalDateTime startedAt = LocalDateTime.parse(rs.getString("started_at"));
-        String finishedAtStr = rs.getString("finished_at");
-        LocalDateTime finishedAt = finishedAtStr != null ? LocalDateTime.parse(finishedAtStr) : null;
-        Duration elapsed = Duration.ofSeconds(rs.getLong("elapsed_seconds"));
-
-        return new IndexRun(
-                rs.getLong("id"),
-                startedAt,
-                finishedAt,
-                rs.getString("root_path"),
-                rs.getInt("total_files"),
-                rs.getInt("indexed"),
-                rs.getInt("skipped"),
-                rs.getInt("failed"),
-                rs.getInt("deleted"),
-                elapsed
-        );
     }
 }
 

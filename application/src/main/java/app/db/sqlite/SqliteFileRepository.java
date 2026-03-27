@@ -255,7 +255,7 @@ public final class SqliteFileRepository implements FileRepository {
             }
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    files.add(mapFileRecord(rs));
+                    files.add(SqliteRowMappers.fileRecord(rs));
                 }
             }
         }
@@ -271,33 +271,11 @@ public final class SqliteFileRepository implements FileRepository {
             }
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    results.add(mapResult(rs));
+                    results.add(SqliteRowMappers.searchResult(rs));
                 }
             }
         }
         return results;
-    }
-
-    private FileRecord mapFileRecord(ResultSet rs) throws SQLException {
-        return new FileRecord(
-                Path.of(rs.getString("path")),
-                rs.getString("filename"),
-                rs.getString("extension"),
-                rs.getLong("size_bytes"),
-                LocalDateTime.parse(rs.getString("created_at")),
-                LocalDateTime.parse(rs.getString("modified_at"))
-        );
-    }
-
-    private SearchResult mapResult(ResultSet rs) throws SQLException {
-        return new SearchResult(
-                Path.of(rs.getString("path")),
-                rs.getString("filename"),
-                rs.getString("extension"),
-                rs.getString("preview"),
-                LocalDateTime.parse(rs.getString("modified_at")),
-                rs.getObject("size_bytes", Long.class)
-        );
     }
 }
 
