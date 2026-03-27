@@ -4,12 +4,15 @@ import app.model.SearchResult;
 import app.repository.FileRepository;
 import app.search.query.Query;
 import app.search.query.QueryParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.List;
 
 public class SearchEngine {
 
+    private static final Logger log = LoggerFactory.getLogger(SearchEngine.class);
     private final FileRepository repository;
     private final QueryParser parser;
     private static final int DEFAULT_LIMIT = 50;
@@ -30,10 +33,10 @@ public class SearchEngine {
             Query query = parser.parse(input);
             return repository.search(query, limit);
         } catch (IllegalArgumentException e) {
-            System.err.println("Invalid query: " + e.getMessage());
+            log.warn("Invalid query input: {}", e.getMessage());
             return List.of();
         } catch (SQLException e) {
-            System.err.println("Search failed: " + e.getMessage());
+            log.error("Search failed due to database error: {}", e.getMessage());
             return List.of();
         }
     }

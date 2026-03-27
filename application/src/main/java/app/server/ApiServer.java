@@ -12,13 +12,17 @@ import app.search.SearchEngine;
 import app.search.query.QueryParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.javalin.Javalin;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.sql.SQLException;
 import java.util.List;
 
 public class ApiServer implements AutoCloseable {
 
+    private static final Logger log = LoggerFactory.getLogger(ApiServer.class);
     private static final int DEFAULT_PORT = 7070;
 
     private final int port;
@@ -41,19 +45,36 @@ public class ApiServer implements AutoCloseable {
                 cors.add(rule -> rule.anyHost())
         ));
 
-        app.exception(IllegalArgumentException.class, (e, ctx) ->
-                writeJson(ctx.status(400), new MessageResponse(e.getMessage())));
-        app.exception(Exception.class, (e, ctx) ->
-                writeJson(ctx.status(500), new MessageResponse("Server error: " + e.getMessage())));
+        app.exception(IllegalArgumentException.class, (e, ctx) -> {
+            log.warn("Bad request: {}", e.getMessage());
+            writeJson(ctx.status(400), new ErrorResponse("BAD_REQUEST", e.getMessage()));
+        });
+        app.exception(SQLException.class, (e, ctx) -> {
+            log.error("Database error while handling request", e);
+            writeJson(ctx.status(500), new ErrorResponse("DB_ERROR", "Database error."));
+        });
+        app.exception(IOException.class, (e, ctx) -> {
+            log.error("I/O error while handling request", e);
+            writeJson(ctx.status(500), new ErrorResponse("IO_ERROR", "I/O error."));
+        });
+        app.exception(Exception.class, (e, ctx) -> {
+            log.error("Unhandled server error", e);
+            writeJson(ctx.status(500), new ErrorResponse("SERVER_ERROR", "Server error."));
+        });
 
         app.get("/api/health", ctx -> writeJson(ctx, new HealthResponse("ok")));
 
         app.post("/api/index/start", ctx -> {
-            IndexStartRequest request = ctx.bodyAsClass(IndexStartRequest.class);
+            IndexStartRequest request;
+            try {
+                request = ctx.bodyAsClass(IndexStartRequest.class);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid JSON body.");
+            }
             validateStartRequest(request);
             boolean started = backgroundIndexer.start(live -> buildIndexer(request, live));
             if (!started) {
-                writeJson(ctx.status(409), new MessageResponse("Indexing job is already running."));
+                writeJson(ctx.status(409), new ErrorResponse("JOB_ALREADY_RUNNING", "Indexing job is already running."));
                 return;
             }
             writeJson(ctx.status(202), new MessageResponse("Indexing job started."));
@@ -76,7 +97,8 @@ public class ApiServer implements AutoCloseable {
                         .toList();
                 writeJson(ctx, body);
             } catch (SQLException | IOException e) {
-                writeJson(ctx.status(500), new MessageResponse("Failed to load index history: " + e.getMessage()));
+                log.error("Failed to load index history", e);
+                writeJson(ctx.status(500), new ErrorResponse("INDEX_HISTORY_FAILED", "Failed to load index history."));
             }
         });
 
@@ -89,11 +111,13 @@ public class ApiServer implements AutoCloseable {
                 SearchEngine engine = new SearchEngine(db, new QueryParser(), limit);
                 writeJson(ctx, engine.search(query));
             } catch (SQLException | IOException e) {
-                writeJson(ctx.status(500), new MessageResponse("Search failed: " + e.getMessage()));
+                log.error("Search failed", e);
+                writeJson(ctx.status(500), new ErrorResponse("SEARCH_FAILED", "Search failed."));
             }
         });
 
         app.start(port);
+        log.info("API server started on port {}", port);
     }
 
     private Indexer buildIndexer(IndexStartRequest request, IndexingLiveProgress liveProgress) {
@@ -134,7 +158,7 @@ public class ApiServer implements AutoCloseable {
             ctx.contentType("application/json");
             ctx.result(objectMapper.writeValueAsString(body));
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to serialize JSON response", e);
+            throw new UncheckedIOException(new IOException("Failed to serialize JSON response", e));
         }
     }
 
@@ -166,6 +190,8 @@ public class ApiServer implements AutoCloseable {
     ) {}
 
     public record MessageResponse(String message) {}
+
+    public record ErrorResponse(String code, String message) {}
 
     public record HealthResponse(String status) {}
 
