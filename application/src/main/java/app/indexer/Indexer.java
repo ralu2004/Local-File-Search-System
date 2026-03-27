@@ -8,6 +8,8 @@ import app.model.ExtractedRecord;
 import app.model.FileRecord;
 import app.repository.FileRepository;
 import app.repository.IndexRunRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
@@ -22,6 +24,7 @@ import java.util.Set;
 
 public class Indexer {
 
+    private static final Logger log = LoggerFactory.getLogger(Indexer.class);
     private static final int DEFAULT_BATCH_SIZE = 250;
     private static final int PROGRESS_LOG_INTERVAL = 500;
     private static final int OPTIMIZE_FTS_MIN_INDEXED = 500;
@@ -64,7 +67,7 @@ public class Indexer {
                     LocalDateTime.now(),
                     crawler.getRoot().toAbsolutePath().normalize().toString());
         } catch (SQLException e) {
-            System.err.println("Failed to start index run tracking: " + e.getMessage());
+            log.warn("Failed to start index run tracking: {}", e.getMessage());
         }
 
         IndexingStats stats = new IndexingStats();
@@ -88,7 +91,7 @@ public class Indexer {
                             stats.indexed += flushBatch(pendingBatch);
                         } catch (SQLException e) {
                             stats.failed += pendingBatch.size();
-                            System.err.println("Failed to write batch: " + e.getMessage());
+                            log.error("Failed to write DB batch of size {}: {}", pendingBatch.size(), e.getMessage());
                             pendingBatch.clear();
                         }
                     }
@@ -100,7 +103,7 @@ public class Indexer {
                 publishLive(stats, pendingBatch.size());
             }
             if (currentTotal % PROGRESS_LOG_INTERVAL == 0) {
-                System.out.println("Progress: " + currentTotal + " files processed...");
+                log.info("Progress: {} files processed...", currentTotal);
             }
         });
 
@@ -125,7 +128,7 @@ public class Indexer {
                 repository.optimizeFts();
             }
         } catch (SQLException e) {
-            System.err.println("Index finalization failed: " + e.getMessage());
+            log.error("Index finalization failed: {}", e.getMessage());
             stats.failed += pendingBatch.size();
         }
 
@@ -140,7 +143,7 @@ public class Indexer {
         try {
             indexRunRepository.endIndexing(runId, report);
         } catch (SQLException e) {
-            System.err.println("Failed to finalize index run tracking: " + e.getMessage());
+            log.warn("Failed to finalize index run tracking: {}", e.getMessage());
         }
 
         return report;
@@ -157,10 +160,10 @@ public class Indexer {
             pendingBatch.add(extracted);
             return IndexResult.QUEUED;
         } catch (FileTooLargeException e) {
-            System.err.println(e.getMessage());
+            log.debug("Skipping large file: {}", e.getMessage());
             return IndexResult.SKIPPED;
         } catch (RuntimeException e) {
-            System.err.println("Failed to index file: " + record.path() + " — " + e.getMessage());
+            log.warn("Failed to index file {}: {}", record.path(), e.getMessage());
             return IndexResult.FAILED;
         }
     }
@@ -176,7 +179,7 @@ public class Indexer {
         try {
             return repository.getAllModifiedAtByPath();
         } catch (SQLException e) {
-            System.err.println("Failed to preload modified times: " + e.getMessage());
+            log.warn("Failed to preload modified times: {}", e.getMessage());
             return Map.of();
         }
     }
