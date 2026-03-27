@@ -20,6 +20,9 @@ import java.util.Set;
 public class Database implements FileRepository, IndexRunRepository, AutoCloseable {
 
     private static final String FILE_COLUMNS = "path, filename, extension, size_bytes, created_at, modified_at";
+    private static final int SQLITE_BUSY_TIMEOUT_MS = 5_000;
+    private static final String SQLITE_JOURNAL_MODE = "WAL";
+    private static final String SQLITE_SYNCHRONOUS = "NORMAL";
 
     private final String jdbcUrl;
     private final QueryBuilder queryBuilder;
@@ -28,7 +31,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
         Path path = Paths.get(dbPath);
         Files.createDirectories(path.getParent());
 
-        this.jdbcUrl = "jdbc:sqlite:" + dbPath + "?journal_mode=WAL&busy_timeout=5000";
+        this.jdbcUrl = "jdbc:sqlite:" + dbPath;
         this.queryBuilder = queryBuilder;
         initializeSchema();
     }
@@ -446,11 +449,17 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
     }
 
     private Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(jdbcUrl);
+        Connection conn = DriverManager.getConnection(jdbcUrl);
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("PRAGMA busy_timeout = " + SQLITE_BUSY_TIMEOUT_MS + ";");
+            stmt.execute("PRAGMA journal_mode = " + SQLITE_JOURNAL_MODE + ";");
+            stmt.execute("PRAGMA synchronous = " + SQLITE_SYNCHRONOUS + ";");
+        } catch (SQLException ignored) {
+        }
+        return conn;
     }
 
     @Override
     public void close() {
-        // No-op: this implementation relies on plain JDBC connections.
     }
 }
