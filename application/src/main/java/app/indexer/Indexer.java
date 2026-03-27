@@ -36,7 +36,6 @@ public class Indexer {
     private final FileRepository repository;
     private final IndexRunRepository indexRunRepository;
     private final int batchSize;
-    /** Optional; when non-null, counters are published for {@code /api/index/status} while this job runs. */
     private final IndexingLiveProgress liveProgress;
 
     public Indexer(FileRepository repository, IndexRunRepository indexRunRepository, Crawler crawler, Extractor extractor) {
