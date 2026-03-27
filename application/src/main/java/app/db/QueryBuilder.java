@@ -80,7 +80,9 @@ class QueryBuilder {
         String query = input.trim();
         if (query.isEmpty()) return "";
 
-        List<String> out = new ArrayList<>();
+        record Part(String text, boolean isQuoteMarker, boolean inQuotes) {}
+
+        List<Part> parts = new ArrayList<>();
         StringBuilder token = new StringBuilder();
         boolean inQuotes = false;
 
@@ -88,17 +90,17 @@ class QueryBuilder {
             char c = query.charAt(i);
             if (c == '"') {
                 if (token.length() > 0) {
-                    out.add(transformToken(token.toString(), false));
+                    parts.add(new Part(token.toString(), false, false));
                     token.setLength(0);
                 }
                 inQuotes = !inQuotes;
-                out.add("\"");
+                parts.add(new Part("\"", true, false));
                 continue;
             }
 
             if (!inQuotes && Character.isWhitespace(c)) {
                 if (token.length() > 0) {
-                    out.add(transformToken(token.toString(), false));
+                    parts.add(new Part(token.toString(), false, false));
                     token.setLength(0);
                 }
                 continue;
@@ -108,13 +110,22 @@ class QueryBuilder {
         }
 
         if (token.length() > 0) {
-            out.add(transformToken(token.toString(), inQuotes));
+            parts.add(new Part(token.toString(), false, inQuotes));
+        }
+
+        int lastPrefixCandidateIndex = -1;
+        for (int i = 0; i < parts.size(); i++) {
+            Part p = parts.get(i);
+            if (p.isQuoteMarker) continue;
+            if (p.inQuotes) continue;
+            if (isPrefixCandidate(p.text)) lastPrefixCandidateIndex = i;
         }
 
         StringBuilder rebuilt = new StringBuilder();
         boolean openQuoteJustAppended = false;
-        for (String part : out) {
-            if (part.equals("\"")) {
+        for (int i = 0; i < parts.size(); i++) {
+            Part part = parts.get(i);
+            if (part.isQuoteMarker) {
                 if (openQuoteJustAppended) {
                     rebuilt.append("\"");
                     openQuoteJustAppended = false;
@@ -126,16 +137,27 @@ class QueryBuilder {
                 continue;
             }
 
+            String transformed = transformToken(part.text, part.inQuotes, i == lastPrefixCandidateIndex);
             if (!rebuilt.isEmpty() && rebuilt.charAt(rebuilt.length() - 1) != '"' && rebuilt.charAt(rebuilt.length() - 1) != ' ') {
                 rebuilt.append(' ');
             }
-            rebuilt.append(part);
+            rebuilt.append(transformed);
         }
 
         return rebuilt.toString().trim();
     }
 
-    private String transformToken(String rawToken, boolean inQuotes) {
+    private boolean isPrefixCandidate(String rawToken) {
+        if (rawToken == null) return false;
+        String token = rawToken.trim();
+        if (token.isEmpty()) return false;
+        if (token.endsWith("*")) return false;
+        String upper = token.toUpperCase();
+        if (upper.equals("AND") || upper.equals("OR") || upper.equals("NOT") || upper.equals("NEAR")) return false;
+        return token.matches("[A-Za-z0-9_]+");
+    }
+
+    private String transformToken(String rawToken, boolean inQuotes, boolean shouldPrefix) {
         if (rawToken == null) return "";
         String token = rawToken.trim();
         if (token.isEmpty()) return "";
@@ -152,7 +174,7 @@ class QueryBuilder {
         if (token.endsWith("*")) return token;
 
         if (token.matches("[A-Za-z0-9_]+")) {
-            return token + "*";
+            return shouldPrefix ? token + "*" : token;
         }
 
         return "\"" + token.replace("\"", "\"\"") + "\"";
