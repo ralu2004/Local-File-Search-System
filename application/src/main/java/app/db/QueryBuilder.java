@@ -6,9 +6,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-class QueryBuilder {
+public class QueryBuilder {
 
-    BuiltQuery build(Query query, int limit) {
+    public BuiltQuery build(Query query, int limit) {
         StringBuilder sql = new StringBuilder();
         List<Object> params = new ArrayList<>();
 
