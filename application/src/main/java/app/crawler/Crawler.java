@@ -11,9 +11,12 @@ import java.util.*;
 import java.util.function.Consumer;
 
 import app.util.FileTypes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Crawler {
 
+    private static final Logger log = LoggerFactory.getLogger(Crawler.class);
     private final Path root;
     private final List<PathMatcher> matchers;
     private static final List<String> DEFAULT_IGNORE_RULES = List.of(
@@ -93,9 +96,9 @@ public class Crawler {
                         @Override
                         public FileVisitResult visitFileFailed(Path file, IOException exc) {
                             if (exc instanceof FileSystemLoopException) {
-                                System.err.println("Symlink loop detected, skipping: " + file);
+                                log.warn("Symlink loop detected, skipping: {}", file);
                             } else {
-                                System.err.println("Could not access file, skipping: " + file);
+                                log.warn("Could not access file, skipping: {} ({})", file, exc.getMessage());
                             }
                             return FileVisitResult.CONTINUE;
                         }
