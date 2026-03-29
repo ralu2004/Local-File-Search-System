@@ -9,6 +9,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * SQLite implementation of {@link app.repository.IndexRunRepository} for
+ * indexing job start/end and history listing.
+ */
 public final class SqliteIndexRunRepository implements IndexRunRepository {
 
     private final SqliteConnectionProvider connections;

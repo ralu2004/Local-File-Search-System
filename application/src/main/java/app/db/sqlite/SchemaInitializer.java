@@ -4,6 +4,9 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+/**
+ * Creates {@code files}, {@code files_fts} (FTS5), and {@code index_runs} if missing.
+ */
 public final class SchemaInitializer {
 
     private SchemaInitializer() {}

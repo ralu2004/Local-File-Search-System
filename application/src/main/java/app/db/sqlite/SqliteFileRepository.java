@@ -13,6 +13,11 @@ import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.*;
 
+/**
+ * SQLite implementation of {@link app.repository.FileRepository}: persists file
+ * rows and FTS rows, runs search via {@link app.db.QueryBuilder}, and maps
+ * results with {@link SqliteRowMappers}.
+ */
 public final class SqliteFileRepository implements FileRepository {
 
     private static final String FILE_COLUMNS = "path, filename, extension, size_bytes, created_at, modified_at";

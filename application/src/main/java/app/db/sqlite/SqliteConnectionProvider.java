@@ -5,6 +5,10 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+/**
+ * Opens JDBC connections to SQLite and applies common PRAGMA settings
+ * (busy timeout, WAL, synchronous).
+ */
 public final class SqliteConnectionProvider {
 
     private static final int SQLITE_BUSY_TIMEOUT_MS = 5_000;

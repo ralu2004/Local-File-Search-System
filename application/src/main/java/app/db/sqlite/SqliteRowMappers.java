@@ -10,7 +10,11 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
+/**
+ * Maps JDBC {@link java.sql.ResultSet} rows to domain models for SQLite repositories.
+ */
 final class SqliteRowMappers {
+
     private SqliteRowMappers() {}
 
     static FileRecord fileRecord(ResultSet rs) throws SQLException {
