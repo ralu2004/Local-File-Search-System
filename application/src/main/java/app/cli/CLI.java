@@ -1,13 +1,10 @@
 package app.cli;
 
-import app.crawler.Crawler;
-import app.db.Database;
 import app.db.DatabaseProvider;
 import app.db.SqliteDatabaseProvider;
-import app.extractor.Extractor;
 import app.indexer.IndexReport;
-import app.indexer.Indexer;
 import app.model.SearchResult;
+import app.service.IndexService;
 import app.service.SearchService;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
@@ -23,7 +20,7 @@ import java.util.List;
 )
 public class CLI implements Runnable {
 
-    private final DatabaseProvider databaseProvider;
+    private final IndexService indexService;
     private final SearchService searchService;
 
     public CLI() {
@@ -31,7 +28,7 @@ public class CLI implements Runnable {
     }
 
     public CLI(DatabaseProvider databaseProvider) {
-        this.databaseProvider = databaseProvider;
+        this.indexService = new IndexService(databaseProvider);
         this.searchService = new SearchService(databaseProvider);
     }
 
@@ -80,16 +77,16 @@ public class CLI implements Runnable {
 
         @Override
         public void run() {
-            try (Database db = parent.dbPath != null
-                    ? parent.databaseProvider.open(parent.dbPath)
-                    : parent.databaseProvider.openDefault()) {
-
-                Crawler crawler = new Crawler(root, ignoreRules);
-                Extractor extractor = new Extractor(previewLines, (long) maxFileSizeMb * 1024 * 1024);
-                Indexer indexer = new Indexer(db, db, db, crawler, extractor, batchSize);
-
+            try {
                 System.out.println("Indexing " + root + "...");
-                IndexReport report = indexer.run();
+                IndexReport report = parent.indexService.indexNow(
+                        parent.dbPath,
+                        root,
+                        ignoreRules,
+                        maxFileSizeMb,
+                        previewLines,
+                        batchSize
+                );
 
                 System.out.println("\nIndexing complete!");
                 System.out.println("─────────────────────────────────");

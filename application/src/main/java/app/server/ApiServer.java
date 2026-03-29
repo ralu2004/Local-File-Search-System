@@ -1,16 +1,12 @@
 package app.server;
 
-import app.crawler.Crawler;
-import app.db.Database;
 import app.db.DatabaseProvider;
 import app.db.SqliteDatabaseProvider;
-import app.extractor.Extractor;
-import app.indexer.Indexer;
 import app.indexer.job.BackgroundIndexer;
 import app.indexer.job.IndexingJobSnapshot;
-import app.indexer.job.IndexingLiveProgress;
 import app.model.IndexRun;
 import app.service.HistoryService;
+import app.service.IndexService;
 import app.service.SearchService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.javalin.Javalin;
@@ -28,8 +24,8 @@ public class ApiServer implements AutoCloseable {
     private static final int DEFAULT_PORT = 7070;
 
     private final int port;
-    private final DatabaseProvider databaseProvider;
     private final BackgroundIndexer backgroundIndexer;
+    private final IndexService indexService;
     private final HistoryService historyService;
     private final SearchService searchService;
     private final ObjectMapper objectMapper;
@@ -45,8 +41,8 @@ public class ApiServer implements AutoCloseable {
 
     public ApiServer(int port, DatabaseProvider databaseProvider) {
         this.port = port;
-        this.databaseProvider = databaseProvider;
         this.backgroundIndexer = new BackgroundIndexer();
+        this.indexService = new IndexService(databaseProvider);
         this.historyService = new HistoryService(databaseProvider);
         this.searchService = new SearchService(databaseProvider);
         this.objectMapper = new ObjectMapper().findAndRegisterModules();
@@ -84,7 +80,17 @@ public class ApiServer implements AutoCloseable {
                 throw new IllegalArgumentException("Invalid JSON body.");
             }
             validateStartRequest(request);
-            boolean started = backgroundIndexer.start(live -> buildIndexer(request, live));
+            boolean started = backgroundIndexer.start(live ->
+                    indexService.createBackgroundIndexer(
+                            request.dbPath(),
+                            request.root(),
+                            request.ignoreRules(),
+                            request.maxFileSizeMb(),
+                            request.previewLines(),
+                            request.batchSize(),
+                            live
+                    )
+            );
             if (!started) {
                 writeJson(ctx.status(409), new ErrorResponse("JOB_ALREADY_RUNNING", "Indexing job is already running."));
                 return;
@@ -129,37 +135,6 @@ public class ApiServer implements AutoCloseable {
 
         app.start(port);
         log.info("API server started on port {}", port);
-    }
-
-    private Indexer buildIndexer(IndexStartRequest request, IndexingLiveProgress liveProgress) {
-        String dbPath = request.dbPath() == null || request.dbPath().isBlank() ? null : request.dbPath();
-        int maxFileSizeMb = request.maxFileSizeMb() <= 0 ? 10 : request.maxFileSizeMb();
-        int previewLines = request.previewLines() <= 0 ? 3 : request.previewLines();
-        int batchSize = request.batchSize() <= 0 ? 250 : request.batchSize();
-        List<String> ignoreRules = request.ignoreRules() == null ? List.of() : request.ignoreRules();
-
-        try {
-            Database db = openDatabase(dbPath);
-            Crawler crawler = new Crawler(java.nio.file.Path.of(request.root()), ignoreRules);
-            Extractor extractor = new Extractor(previewLines, (long) maxFileSizeMb * 1024 * 1024);
-            return new Indexer(db, db, db, crawler, extractor, batchSize, liveProgress) {
-                @Override
-                public app.indexer.IndexReport run() {
-                    try (db) {
-                        return super.run();
-                    }
-                }
-            };
-        } catch (Exception e) {
-            throw new IllegalStateException("Cannot start indexer: " + e.getMessage(), e);
-        }
-    }
-
-    private Database openDatabase(String dbPath) throws SQLException, IOException {
-        if (dbPath == null || dbPath.isBlank()) {
-            return databaseProvider.openDefault();
-        }
-        return databaseProvider.open(dbPath);
     }
 
     private void validateStartRequest(IndexStartRequest request) {
