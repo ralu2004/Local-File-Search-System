@@ -2,6 +2,8 @@ package app.cli;
 
 import app.crawler.Crawler;
 import app.db.Database;
+import app.db.DatabaseProvider;
+import app.db.SqliteDatabaseProvider;
 import app.extractor.Extractor;
 import app.indexer.IndexReport;
 import app.indexer.Indexer;
@@ -21,6 +23,16 @@ import java.util.List;
         mixinStandardHelpOptions = true
 )
 public class CLI implements Runnable {
+
+    private final DatabaseProvider databaseProvider;
+
+    public CLI() {
+        this(new SqliteDatabaseProvider());
+    }
+
+    public CLI(DatabaseProvider databaseProvider) {
+        this.databaseProvider = databaseProvider;
+    }
 
     @Option(names = {"--db"}, description = "Custom database path (default: .searchengine/index.db)")
     String dbPath;
@@ -68,8 +80,8 @@ public class CLI implements Runnable {
         @Override
         public void run() {
             try (Database db = parent.dbPath != null
-                    ? new Database(parent.dbPath)
-                    : new Database()) {
+                    ? parent.databaseProvider.open(parent.dbPath)
+                    : parent.databaseProvider.openDefault()) {
 
                 Crawler crawler = new Crawler(root, ignoreRules);
                 Extractor extractor = new Extractor(previewLines, (long) maxFileSizeMb * 1024 * 1024);
@@ -125,8 +137,8 @@ public class CLI implements Runnable {
         @Override
         public void run() {
             try (Database db = parent.dbPath != null
-                    ? new Database(parent.dbPath)
-                    : new Database()) {
+                    ? parent.databaseProvider.open(parent.dbPath)
+                    : parent.databaseProvider.openDefault()) {
 
                 SearchEngine engine = new SearchEngine(db, new QueryParser(), limit);
                 List<SearchResult> results = engine.search(query);

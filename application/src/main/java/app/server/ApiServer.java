@@ -2,6 +2,8 @@ package app.server;
 
 import app.crawler.Crawler;
 import app.db.Database;
+import app.db.DatabaseProvider;
+import app.db.SqliteDatabaseProvider;
 import app.extractor.Extractor;
 import app.indexer.Indexer;
 import app.indexer.job.BackgroundIndexer;
@@ -26,16 +28,22 @@ public class ApiServer implements AutoCloseable {
     private static final int DEFAULT_PORT = 7070;
 
     private final int port;
+    private final DatabaseProvider databaseProvider;
     private final BackgroundIndexer backgroundIndexer;
     private final ObjectMapper objectMapper;
     private Javalin app;
 
     public ApiServer() {
-        this(DEFAULT_PORT);
+        this(DEFAULT_PORT, new SqliteDatabaseProvider());
     }
 
     public ApiServer(int port) {
+        this(port, new SqliteDatabaseProvider());
+    }
+
+    public ApiServer(int port, DatabaseProvider databaseProvider) {
         this.port = port;
+        this.databaseProvider = databaseProvider;
         this.backgroundIndexer = new BackgroundIndexer();
         this.objectMapper = new ObjectMapper().findAndRegisterModules();
     }
@@ -89,7 +97,7 @@ public class ApiServer implements AutoCloseable {
             String dbPath = ctx.queryParam("db");
             int limit = parsePositiveInt(ctx.queryParam("limit"), 20);
             int capped = Math.min(Math.max(limit, 1), 100);
-            try (Database db = dbPath != null && !dbPath.isBlank() ? new Database(dbPath) : new Database()) {
+            try (Database db = openDatabase(dbPath)) {
                 List<IndexRun> runs = db.getHistory();
                 List<IndexRunResponse> body = runs.stream()
                         .limit(capped)
@@ -107,7 +115,7 @@ public class ApiServer implements AutoCloseable {
             if (query == null) query = "";
             String dbPath = ctx.queryParam("db");
             int limit = parsePositiveInt(ctx.queryParam("limit"), 50);
-            try (Database db = dbPath != null && !dbPath.isBlank() ? new Database(dbPath) : new Database()) {
+            try (Database db = openDatabase(dbPath)) {
                 SearchEngine engine = new SearchEngine(db, new QueryParser(), limit);
                 writeJson(ctx, engine.search(query));
             } catch (SQLException | IOException e) {
@@ -128,7 +136,7 @@ public class ApiServer implements AutoCloseable {
         List<String> ignoreRules = request.ignoreRules() == null ? List.of() : request.ignoreRules();
 
         try {
-            Database db = dbPath != null ? new Database(dbPath) : new Database();
+            Database db = openDatabase(dbPath);
             Crawler crawler = new Crawler(java.nio.file.Path.of(request.root()), ignoreRules);
             Extractor extractor = new Extractor(previewLines, (long) maxFileSizeMb * 1024 * 1024);
             return new Indexer(db, db, crawler, extractor, batchSize, liveProgress) {
@@ -142,6 +150,13 @@ public class ApiServer implements AutoCloseable {
         } catch (Exception e) {
             throw new IllegalStateException("Cannot start indexer: " + e.getMessage(), e);
         }
+    }
+
+    private Database openDatabase(String dbPath) throws SQLException, IOException {
+        if (dbPath == null || dbPath.isBlank()) {
+            return databaseProvider.openDefault();
+        }
+        return databaseProvider.open(dbPath);
     }
 
     private void validateStartRequest(IndexStartRequest request) {
