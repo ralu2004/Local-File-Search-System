@@ -139,7 +139,7 @@ public class ApiServer implements AutoCloseable {
             Database db = openDatabase(dbPath);
             Crawler crawler = new Crawler(java.nio.file.Path.of(request.root()), ignoreRules);
             Extractor extractor = new Extractor(previewLines, (long) maxFileSizeMb * 1024 * 1024);
-            return new Indexer(db, db, crawler, extractor, batchSize, liveProgress) {
+            return new Indexer(db, db, db, crawler, extractor, batchSize, liveProgress) {
                 @Override
                 public app.indexer.IndexReport run() {
                     try (db) {

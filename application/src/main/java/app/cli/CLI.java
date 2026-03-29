@@ -85,7 +85,7 @@ public class CLI implements Runnable {
 
                 Crawler crawler = new Crawler(root, ignoreRules);
                 Extractor extractor = new Extractor(previewLines, (long) maxFileSizeMb * 1024 * 1024);
-                Indexer indexer = new Indexer(db, db, crawler, extractor, batchSize);
+                Indexer indexer = new Indexer(db, db, db, crawler, extractor, batchSize);
 
                 System.out.println("Indexing " + root + "...");
                 IndexReport report = indexer.run();

@@ -6,7 +6,8 @@ import app.extractor.FileTooLargeException;
 import app.indexer.job.IndexingLiveProgress;
 import app.model.ExtractedRecord;
 import app.model.FileRecord;
-import app.repository.FileRepository;
+import app.repository.FileMetadataRepository;
+import app.repository.FileWriteRepository;
 import app.repository.IndexRunRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,24 +34,29 @@ public class Indexer {
 
     private final Crawler crawler;
     private final Extractor extractor;
-    private final FileRepository repository;
+    private final FileWriteRepository writeRepository;
+    private final FileMetadataRepository metadataRepository;
     private final IndexRunRepository indexRunRepository;
     private final int batchSize;
     private final IndexingLiveProgress liveProgress;
 
-    public Indexer(FileRepository repository, IndexRunRepository indexRunRepository, Crawler crawler, Extractor extractor) {
-        this(repository, indexRunRepository, crawler, extractor, DEFAULT_BATCH_SIZE, null);
+    public Indexer(FileWriteRepository writeRepository, FileMetadataRepository metadataRepository,
+                   IndexRunRepository indexRunRepository, Crawler crawler, Extractor extractor) {
+        this(writeRepository, metadataRepository, indexRunRepository, crawler, extractor, DEFAULT_BATCH_SIZE, null);
     }
 
-    public Indexer(FileRepository repository, IndexRunRepository indexRunRepository,
+    public Indexer(FileWriteRepository writeRepository, FileMetadataRepository metadataRepository,
+                   IndexRunRepository indexRunRepository,
                    Crawler crawler, Extractor extractor, int batchSize) {
-        this(repository, indexRunRepository, crawler, extractor, batchSize, null);
+        this(writeRepository, metadataRepository, indexRunRepository, crawler, extractor, batchSize, null);
     }
 
-    public Indexer(FileRepository repository, IndexRunRepository indexRunRepository,
+    public Indexer(FileWriteRepository writeRepository, FileMetadataRepository metadataRepository,
+                   IndexRunRepository indexRunRepository,
                    Crawler crawler, Extractor extractor, int batchSize,
                    IndexingLiveProgress liveProgress) {
-        this.repository = repository;
+        this.writeRepository = writeRepository;
+        this.metadataRepository = metadataRepository;
         this.indexRunRepository = indexRunRepository;
         this.crawler = crawler;
         this.extractor = extractor;
@@ -119,12 +125,12 @@ public class Indexer {
             if (liveProgress != null) {
                 publishLive(stats, pendingBatch.size());
             }
-            deleted = repository.batchDelete(paths);
+            deleted = writeRepository.batchDelete(paths);
             if (liveProgress != null) {
                 publishLive(stats, pendingBatch.size());
             }
             if (stats.indexed >= OPTIMIZE_FTS_MIN_INDEXED) {
-                repository.optimizeFts();
+                writeRepository.optimizeFts();
             }
         } catch (SQLException e) {
             log.error("Index finalization failed: {}", e.getMessage());
@@ -169,14 +175,14 @@ public class Indexer {
 
     private int flushBatch(List<ExtractedRecord> pendingBatch) throws SQLException {
         int batchSize = pendingBatch.size();
-        repository.batchUpsert(pendingBatch);
+        writeRepository.batchUpsert(pendingBatch);
         pendingBatch.clear();
         return batchSize;
     }
 
     private Map<Path, LocalDateTime> preloadStoredModifiedByPath() {
         try {
-            return repository.getAllModifiedAtByPath();
+            return metadataRepository.getAllModifiedAtByPath();
         } catch (SQLException e) {
             log.warn("Failed to preload modified times: {}", e.getMessage());
             return Map.of();

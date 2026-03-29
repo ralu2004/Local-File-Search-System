@@ -1,7 +1,7 @@
 package app.search;
 
 import app.model.SearchResult;
-import app.repository.FileRepository;
+import app.repository.FileSearchRepository;
 import app.search.query.Query;
 import app.search.query.QueryParser;
 import org.slf4j.Logger;
@@ -13,16 +13,16 @@ import java.util.List;
 public class SearchEngine {
 
     private static final Logger log = LoggerFactory.getLogger(SearchEngine.class);
-    private final FileRepository repository;
+    private final FileSearchRepository repository;
     private final QueryParser parser;
     private static final int DEFAULT_LIMIT = 50;
     private final int limit;
 
-    public SearchEngine(FileRepository repository) {
+    public SearchEngine(FileSearchRepository repository) {
         this(repository, new QueryParser(), DEFAULT_LIMIT);
     }
 
-    public SearchEngine(FileRepository repository, QueryParser parser, int limit) {
+    public SearchEngine(FileSearchRepository repository, QueryParser parser, int limit) {
         this.repository = repository;
         this.parser = parser;
         this.limit = limit;
