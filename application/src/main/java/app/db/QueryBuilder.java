@@ -6,6 +6,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Builds search SQL queries for SQLite FTS5 ({@code files_fts}), as well as
+ * optional filters on {@code files} (extension, modified time, size).
+ * Normalizes user input into a valid FTS5 {@code MATCH} query string.
+ */
 public class QueryBuilder {
 
     public BuiltQuery build(Query query, int limit) {

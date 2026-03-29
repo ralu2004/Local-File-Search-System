@@ -19,6 +19,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * SQLite-backed facade for file indexing and index-run history.
+ * Delegates to {@link app.db.sqlite.SqliteFileRepository} and
+ * {@link app.db.sqlite.SqliteIndexRunRepository}; creates the DB file parent
+ * directory and applies schema on construction.
+ */
 public class Database implements FileRepository, IndexRunRepository, AutoCloseable {
 
     private final SqliteConnectionProvider connections;
