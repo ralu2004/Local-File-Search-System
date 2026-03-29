@@ -8,8 +8,7 @@ import app.extractor.Extractor;
 import app.indexer.IndexReport;
 import app.indexer.Indexer;
 import app.model.SearchResult;
-import app.search.SearchEngine;
-import app.search.query.QueryParser;
+import app.service.SearchService;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
 
@@ -25,6 +24,7 @@ import java.util.List;
 public class CLI implements Runnable {
 
     private final DatabaseProvider databaseProvider;
+    private final SearchService searchService;
 
     public CLI() {
         this(new SqliteDatabaseProvider());
@@ -32,6 +32,7 @@ public class CLI implements Runnable {
 
     public CLI(DatabaseProvider databaseProvider) {
         this.databaseProvider = databaseProvider;
+        this.searchService = new SearchService(databaseProvider);
     }
 
     @Option(names = {"--db"}, description = "Custom database path (default: .searchengine/index.db)")
@@ -136,12 +137,8 @@ public class CLI implements Runnable {
 
         @Override
         public void run() {
-            try (Database db = parent.dbPath != null
-                    ? parent.databaseProvider.open(parent.dbPath)
-                    : parent.databaseProvider.openDefault()) {
-
-                SearchEngine engine = new SearchEngine(db, new QueryParser(), limit);
-                List<SearchResult> results = engine.search(query);
+            try {
+                List<SearchResult> results = parent.searchService.search(parent.dbPath, query, limit);
 
                 if (results.isEmpty()) {
                     System.out.println("No results found for: " + query);

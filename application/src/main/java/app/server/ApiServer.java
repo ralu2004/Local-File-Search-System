@@ -10,8 +10,8 @@ import app.indexer.job.BackgroundIndexer;
 import app.indexer.job.IndexingJobSnapshot;
 import app.indexer.job.IndexingLiveProgress;
 import app.model.IndexRun;
-import app.search.SearchEngine;
-import app.search.query.QueryParser;
+import app.service.HistoryService;
+import app.service.SearchService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.javalin.Javalin;
 import org.slf4j.Logger;
@@ -30,6 +30,8 @@ public class ApiServer implements AutoCloseable {
     private final int port;
     private final DatabaseProvider databaseProvider;
     private final BackgroundIndexer backgroundIndexer;
+    private final HistoryService historyService;
+    private final SearchService searchService;
     private final ObjectMapper objectMapper;
     private Javalin app;
 
@@ -45,6 +47,8 @@ public class ApiServer implements AutoCloseable {
         this.port = port;
         this.databaseProvider = databaseProvider;
         this.backgroundIndexer = new BackgroundIndexer();
+        this.historyService = new HistoryService(databaseProvider);
+        this.searchService = new SearchService(databaseProvider);
         this.objectMapper = new ObjectMapper().findAndRegisterModules();
     }
 
@@ -97,8 +101,8 @@ public class ApiServer implements AutoCloseable {
             String dbPath = ctx.queryParam("db");
             int limit = parsePositiveInt(ctx.queryParam("limit"), 20);
             int capped = Math.min(Math.max(limit, 1), 100);
-            try (Database db = openDatabase(dbPath)) {
-                List<IndexRun> runs = db.getHistory();
+            try {
+                List<IndexRun> runs = historyService.getHistory(dbPath);
                 List<IndexRunResponse> body = runs.stream()
                         .limit(capped)
                         .map(IndexRunResponse::from)
@@ -115,9 +119,8 @@ public class ApiServer implements AutoCloseable {
             if (query == null) query = "";
             String dbPath = ctx.queryParam("db");
             int limit = parsePositiveInt(ctx.queryParam("limit"), 50);
-            try (Database db = openDatabase(dbPath)) {
-                SearchEngine engine = new SearchEngine(db, new QueryParser(), limit);
-                writeJson(ctx, engine.search(query));
+            try {
+                writeJson(ctx, searchService.search(dbPath, query, limit));
             } catch (SQLException | IOException e) {
                 log.error("Search failed", e);
                 writeJson(ctx.status(500), new ErrorResponse("SEARCH_FAILED", "Search failed."));
