@@ -28,15 +28,12 @@ public class SearchEngine {
         this.limit = limit;
     }
 
-    public List<SearchResult> search(String input) {
+    public List<SearchResult> search(String input) throws SQLException {
         try {
             Query query = parser.parse(input);
             return repository.search(query, limit);
         } catch (IllegalArgumentException e) {
             log.warn("Invalid query input: {}", e.getMessage());
-            return List.of();
-        } catch (SQLException e) {
-            log.error("Search failed due to database error: {}", e.getMessage());
             return List.of();
         }
     }
