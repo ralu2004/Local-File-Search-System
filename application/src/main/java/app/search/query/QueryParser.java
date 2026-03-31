@@ -5,6 +5,12 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Parses user search input into a structured {@link Query}.
+ * <p>
+ * Supports full-text terms, filename-style queries, and metadata-style filters
+ * like {@code ext:...}, {@code modified:...}, and {@code size:...}.
+ */
 public class QueryParser {
 
     private static final Pattern METADATA_PATTERN =

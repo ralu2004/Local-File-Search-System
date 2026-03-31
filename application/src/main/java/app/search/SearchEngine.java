@@ -10,6 +10,12 @@ import org.slf4j.LoggerFactory;
 import java.sql.SQLException;
 import java.util.List;
 
+/**
+ * Executes parsed search queries against a {@link app.repository.FileSearchRepository}.
+ * <p>
+ * Uses {@link app.search.query.QueryParser} to interpret the user input syntax and
+ * returns a list of {@link app.model.SearchResult} hits.
+ */
 public class SearchEngine {
 
     private static final Logger log = LoggerFactory.getLogger(SearchEngine.class);
