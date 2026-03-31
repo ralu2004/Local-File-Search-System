@@ -8,6 +8,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Metadata read operations for indexed files.
+ */
 public interface FileMetadataRepository {
     LocalDateTime getModifiedAt(Path path) throws SQLException;
     Map<Path, LocalDateTime> getAllModifiedAtByPath() throws SQLException;

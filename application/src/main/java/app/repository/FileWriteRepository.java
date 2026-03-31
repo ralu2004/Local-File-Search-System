@@ -8,6 +8,9 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Persistence operations that mutate indexed file data.
+ */
 public interface FileWriteRepository {
     void upsert(FileRecord record, String content, String preview) throws SQLException;
     void batchUpsert(List<ExtractedRecord> records) throws SQLException;
