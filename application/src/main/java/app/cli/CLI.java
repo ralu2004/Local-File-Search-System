@@ -18,6 +18,11 @@ import java.util.List;
         subcommands = {CLI.IndexCommand.class, CLI.SearchCommand.class},
         mixinStandardHelpOptions = true
 )
+/**
+ * Command line interface for indexing and searching files.
+ * <p>
+ * Supports `index <root>` and `search <query>` subcommands.
+ */
 public class CLI implements Runnable {
 
     private final IndexService indexService;
@@ -55,6 +60,9 @@ public class CLI implements Runnable {
             "  index C:\\projects -i target -i *.log --max-file-size 5"
     })
     static
+    /**
+     * CLI command that indexes files under a root directory.
+     */
     class IndexCommand implements Runnable {
 
         @ParentCommand
@@ -121,6 +129,9 @@ public class CLI implements Runnable {
             "  search \"config ext:json\" --limit 10"
     })
     static
+    /**
+     * CLI command that queries indexed files.
+     */
     class SearchCommand implements Runnable {
 
         @ParentCommand

@@ -18,6 +18,11 @@ import java.io.UncheckedIOException;
 import java.sql.SQLException;
 import java.util.List;
 
+/**
+ * HTTP API server for indexing and searching indexed files.
+ * <p>
+ * Exposes endpoints for health, index start/status/history, and search.
+ */
 public class ApiServer implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(ApiServer.class);
@@ -173,6 +178,9 @@ public class ApiServer implements AutoCloseable {
         backgroundIndexer.close();
     }
 
+    /**
+     * Request payload for starting a new indexing job.
+     */
     public record IndexStartRequest(
             String root,
             String dbPath,
@@ -182,12 +190,24 @@ public class ApiServer implements AutoCloseable {
             int batchSize
     ) {}
 
+    /**
+     * Generic success response payload.
+     */
     public record MessageResponse(String message) {}
 
+    /**
+     * Generic error response payload.
+     */
     public record ErrorResponse(String code, String message) {}
 
+    /**
+     * Health-check response payload.
+     */
     public record HealthResponse(String status) {}
 
+    /**
+     * API-facing representation of an indexing history entry.
+     */
     public record IndexRunResponse(
             long id,
             String startedAt,

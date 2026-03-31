@@ -3,6 +3,12 @@ package app;
 import app.cli.CLI;
 import app.server.ApiServer;
 
+/**
+ * Application entry point.
+ * <p>
+ * Runs the REST API server when started with {@code server [port]}, otherwise
+ * dispatches to the CLI.
+ */
 public class Main {
     public static void main(String[] args) {
         if (args.length > 0 && "server".equalsIgnoreCase(args[0])) {
