@@ -10,6 +10,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Reads textual file content and derives a preview snippet for indexing.
+ */
 public class Extractor {
 
     private static final int DEFAULT_PREVIEW_LINES = 3;

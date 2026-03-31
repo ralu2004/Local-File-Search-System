@@ -2,6 +2,9 @@ package app.extractor;
 
 import java.nio.file.Path;
 
+/**
+ * Signals that a file exceeds the configured maximum size for extraction.
+ */
 public class FileTooLargeException extends RuntimeException {
 
     public FileTooLargeException(Path path, long size, long maxSize) {

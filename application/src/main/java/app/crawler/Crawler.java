@@ -14,6 +14,11 @@ import app.util.FileTypes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Recursively traverses a root directory and emits indexable file metadata.
+ * <p>
+ * Applies built-in and user-provided ignore rules and skips non-text files (as requested in the 1st iteration).
+ */
 public class Crawler {
 
     private static final Logger log = LoggerFactory.getLogger(Crawler.class);
