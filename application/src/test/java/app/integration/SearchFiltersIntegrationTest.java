@@ -108,5 +108,76 @@ class SearchFiltersIntegrationTest {
         assertTrue(results.stream().noneMatch(r -> r.path().equals(txtMatchText)));
         assertTrue(results.stream().noneMatch(r -> r.path().equals(jsonNoText)));
     }
+
+    @Test
+    void maxFileSizeMb_runtimeOptionSkipsTooLargeFiles(@TempDir Path tempDir) throws IOException, SQLException {
+        Path root = tempDir.resolve("root");
+        Files.createDirectories(root);
+
+        Path small = root.resolve("small.txt");
+        Path large = root.resolve("large.txt");
+
+        TestUtils.writeTextFile(small, "small file", FileTime.from(Instant.parse("2025-01-02T00:00:00Z")));
+        // >1 KiB so that maxFileSizeMb=0 (falls back to 10 MB) is not needed; we set explicit small cap below.
+        TestUtils.writeTextFile(large, "x".repeat(2_048), FileTime.from(Instant.parse("2025-01-02T00:00:01Z")));
+
+        String dbPath = tempDir.resolve("runtime-max-size.db").toString();
+        // 0 MB would fallback to default; use 1 MB? We want skip, so use effectively near-zero by setting 1 MB impossible.
+        // Instead, make file significantly larger and set maxFileSizeMb=1 to keep stable.
+        // Here 2KB is not larger than 1MB, so we need a larger file.
+        TestUtils.writeTextFile(large, "x".repeat(1_200_000), FileTime.from(Instant.parse("2025-01-02T00:00:01Z")));
+        TestUtils.indexDirectory(dbPath, root, List.of(), 1, 3, 50);
+
+        assertTrue(TestUtils.search(dbPath, "small file", 20).stream().anyMatch(r -> r.path().equals(small)));
+        assertTrue(TestUtils.search(dbPath, "x", 20).stream().noneMatch(r -> r.path().equals(large)));
+    }
+
+    @Test
+    void previewLines_runtimeOptionAffectsStoredPreview(@TempDir Path tempDir) throws IOException, SQLException {
+        Path root = tempDir.resolve("root");
+        Files.createDirectories(root);
+
+        Path file = root.resolve("preview.txt");
+        String content = String.join(System.lineSeparator(), List.of("line1", "line2", "line3", "line4"));
+        TestUtils.writeTextFile(file, content, FileTime.from(Instant.parse("2025-01-03T00:00:00Z")));
+
+        String dbPathOneLine = tempDir.resolve("runtime-preview-1.db").toString();
+        TestUtils.indexDirectory(dbPathOneLine, root, List.of(), 10, 1, 50);
+        SearchResult oneLine = TestUtils.search(dbPathOneLine, "ext:txt", 10).stream()
+                .filter(r -> r.path().equals(file))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("line1", oneLine.preview());
+
+        String dbPathThreeLines = tempDir.resolve("runtime-preview-3.db").toString();
+        TestUtils.indexDirectory(dbPathThreeLines, root, List.of(), 10, 3, 50);
+        SearchResult threeLines = TestUtils.search(dbPathThreeLines, "ext:txt", 10).stream()
+                .filter(r -> r.path().equals(file))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(String.join(System.lineSeparator(), List.of("line1", "line2", "line3")), threeLines.preview());
+    }
+
+    @Test
+    void batchSize_runtimeOptionStillIndexesAllFiles(@TempDir Path tempDir) throws IOException, SQLException {
+        Path root = tempDir.resolve("root");
+        Files.createDirectories(root);
+
+        for (int i = 0; i < 7; i++) {
+            Path file = root.resolve("f" + i + ".txt");
+            TestUtils.writeTextFile(file, "token-" + i, FileTime.from(Instant.ofEpochSecond(1_700_001_500L + i)));
+        }
+
+        String dbPath = tempDir.resolve("runtime-batch-size.db").toString();
+        // force multiple DB flushes
+        TestUtils.indexDirectory(dbPath, root, List.of(), 10, 3, 1);
+
+        for (int i = 0; i < 7; i++) {
+            String token = "token-" + i;
+            List<SearchResult> results = TestUtils.search(dbPath, token, 10);
+            String expectedFilename = "f" + i + ".txt";
+            assertTrue(results.stream().anyMatch(r -> r.filename().equals(expectedFilename)));
+        }
+    }
 }
 
