@@ -19,6 +19,9 @@ public class QueryParser {
     private static final Pattern FILENAME_PATTERN =
             Pattern.compile("^[a-zA-Z0-9._-]+\\.[a-zA-Z0-9]{2,}$");
 
+    private static final Pattern SIZE_PATTERN =
+            Pattern.compile("^(\\d+)(b|kb|mb|gb)?$", Pattern.CASE_INSENSITIVE);
+
     public Query parse(String input) {
         if (input == null || input.isBlank()) {
             throw new IllegalArgumentException("Input cannot be null or empty");
@@ -29,7 +32,12 @@ public class QueryParser {
 
         Matcher metaMatcher = METADATA_PATTERN.matcher(input);
         while (metaMatcher.find()) {
-            filters.put(metaMatcher.group(1), metaMatcher.group(2));
+            String key = metaMatcher.group(1);
+            String value = metaMatcher.group(2);
+            if (key != null && key.equalsIgnoreCase("size")) {
+                value = normalizeSizeToBytes(value);
+            }
+            filters.put(key, value);
         }
 
         String remaining = metaMatcher.reset(input)
@@ -49,5 +57,38 @@ public class QueryParser {
         }
 
         return new Query(QueryType.MIXED, remaining, Map.copyOf(filters));
+    }
+
+    private String normalizeSizeToBytes(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new IllegalArgumentException("Invalid size filter value.");
+        }
+
+        String trimmed = raw.trim();
+        Matcher matcher = SIZE_PATTERN.matcher(trimmed);
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException("Invalid size filter value: " + raw);
+        }
+
+        long number = Long.parseLong(matcher.group(1));
+        String unit = matcher.group(2);
+        if (unit == null || unit.isBlank() || unit.equalsIgnoreCase("b")) {
+            return String.valueOf(number);
+        }
+
+        long multiplier = switch (unit.toLowerCase()) {
+            case "kb" -> 1024L;
+            case "mb" -> 1024L * 1024L;
+            case "gb" -> 1024L * 1024L * 1024L;
+            default -> throw new IllegalArgumentException("Invalid size unit: " + unit);
+        };
+
+        long bytes;
+        try {
+            bytes = Math.multiplyExact(number, multiplier);
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("Size filter value is too large: " + raw);
+        }
+        return String.valueOf(bytes);
     }
 }

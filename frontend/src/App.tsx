@@ -642,7 +642,10 @@ function App() {
               e.g. ISO-like <code>2024-01-15T10:00:00</code> if needed).
             </li>
             <li>
-              <code>size:1048576</code> — file larger than this many <strong>bytes</strong> (example = 1 MiB).
+              <code>size:1048576</code> — file larger than this many <strong>bytes</strong> (default unit).
+            </li>
+            <li>
+              <code>size:10kb</code>, <code>size:5mb</code>, <code>size:1gb</code> — size filter with units.
             </li>
             <li>
               Examples: <code>readme ext:md</code>, <code>config ext:json</code>, <code>todo size:500</code>.

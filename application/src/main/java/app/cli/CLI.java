@@ -119,12 +119,13 @@ public class CLI implements Runnable {
             "  <filename.ext>      Search by filename",
             "  ext:<extension>     Filter by extension",
             "  modified:<date>     Filter by date (YYYY-MM-DD)",
-            "  size:<bytes>        Filter by file size",
+            "  size:<n>[b|kb|mb|gb] Filter by file size (default unit: bytes)",
             "",
             "Examples:",
             "  search \"getting started\"",
             "  search README.md",
             "  search ext:java",
+            "  search size:10mb",
             "  search \"config ext:json\"",
             "  search \"config ext:json\" --limit 10"
     })
