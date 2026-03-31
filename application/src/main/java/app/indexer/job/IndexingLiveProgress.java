@@ -1,5 +1,8 @@
 package app.indexer.job;
 
+/**
+ * Thread-safe live counters published while indexing is running.
+ */
 public final class IndexingLiveProgress {
 
     private volatile int totalFiles;

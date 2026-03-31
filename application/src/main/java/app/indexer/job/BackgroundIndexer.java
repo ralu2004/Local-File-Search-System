@@ -9,6 +9,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 
+/**
+ * Executes indexing jobs asynchronously and exposes live/last status snapshots.
+ */
 public class BackgroundIndexer implements AutoCloseable {
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();

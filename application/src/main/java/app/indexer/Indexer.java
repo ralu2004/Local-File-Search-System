@@ -23,6 +23,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Coordinates one indexing run: crawl files, extract content, write batches,
+ * remove stale entries, and report progress/statistics.
+ */
 public class Indexer {
 
     private static final Logger log = LoggerFactory.getLogger(Indexer.class);
@@ -30,6 +34,9 @@ public class Indexer {
     private static final int PROGRESS_LOG_INTERVAL = 500;
     private static final int OPTIMIZE_FTS_MIN_INDEXED = 500;
 
+    /**
+     * Outcome of attempting to index a single crawled file.
+     */
     private enum IndexResult { QUEUED, SKIPPED, FAILED }
 
     private final Crawler crawler;
