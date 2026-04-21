@@ -8,7 +8,7 @@ import java.util.Map;
 
 /**
  * Builds search SQL queries for SQLite FTS5 ({@code files_fts}), as well as
- * optional filters on {@code files} (extension, modified time, size).
+ * optional filters on {@code files} (extension, modified time, size, path, content).
  * Normalizes user input into a valid FTS5 {@code MATCH} query string.
  */
 public class QueryBuilder {
@@ -18,9 +18,9 @@ public class QueryBuilder {
     public BuiltQuery build(Query query, int limit) {
         StringBuilder sql = new StringBuilder();
         List<Object> params = new ArrayList<>();
-        boolean hasFtsTerm = hasFtsTerm(query);
+        boolean hasFtsTerm = hasFtsTerm(query) || query.filters().containsKey("content");
 
-        appendBaseSelect(sql, params, query, hasFtsTerm);
+        appendBaseSelect(sql, params, query);
         appendFilters(sql, query.filters(), params);
         appendOrdering(sql, hasFtsTerm);
         appendLimit(sql, params, limit);
@@ -31,13 +31,29 @@ public class QueryBuilder {
         return query.value() != null && !query.value().isBlank();
     }
 
-    private void appendBaseSelect(StringBuilder sql, List<Object> params, Query query, boolean hasFtsTerm) {
-        if (hasFtsTerm) {
+    private void appendBaseSelect(StringBuilder sql, List<Object> params, Query query) {
+        String ftsMatch = buildFtsMatchString(query);
+        if (ftsMatch != null) {
             appendFtsSelect(sql);
-            params.add(toFtsPrefixQuery(query.value()));
+            params.add(ftsMatch);
             return;
         }
         appendPlainSelect(sql);
+    }
+
+    private String buildFtsMatchString(Query query) {
+        String freeTerm = hasFtsTerm(query) ? toFtsPrefixQuery(query.value()) : null;
+        String contentTerm = query.filters().containsKey("content") ? "content:" + query.filters().get("content") : null;
+
+        if (freeTerm != null && contentTerm != null) {
+            return freeTerm + " AND " + contentTerm;
+        }
+
+        if (freeTerm != null) return freeTerm;
+
+        if (contentTerm != null) return contentTerm;
+
+        return null;
     }
 
     private void appendFtsSelect(StringBuilder sql) {
@@ -87,6 +103,7 @@ public class QueryBuilder {
         addExtensionFilter(filters, conditions, params);
         addModifiedFilter(filters, conditions, params);
         addSizeFilter(filters, conditions, params);
+        addPathFilter(filters, conditions, params);
 
         if (!conditions.isEmpty()) {
             sql.append("WHERE ").append(String.join(" AND ", conditions));
@@ -115,6 +132,15 @@ public class QueryBuilder {
         }
         conditions.add("f.size_bytes > ?");
         params.add(Long.parseLong(filters.get("size")));
+    }
+
+    private void addPathFilter(Map<String, String> filters, List<String> conditions, List<Object> params) {
+        if (!filters.containsKey("path")) {
+            return;
+        }
+
+        conditions.add("f.path LIKE ?");
+        params.add("%" + filters.get("path") + "%");
     }
 
     private String toFtsPrefixQuery(String input) {
