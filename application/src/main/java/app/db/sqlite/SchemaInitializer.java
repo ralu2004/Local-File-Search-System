@@ -6,6 +6,9 @@ import java.sql.Statement;
 
 /**
  * Creates {@code files}, {@code files_fts} (FTS5), and {@code index_runs} if missing.
+ * <p>
+ * Runs lightweight migrations for existing databases — ensures
+ * the {@code path_features} table exists for Iteration 2 ranking.
  */
 public final class SchemaInitializer {
 
@@ -48,7 +51,16 @@ public final class SchemaInitializer {
                         elapsed_seconds INTEGER
                     );
                     """);
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS path_features (
+                        path            TEXT PRIMARY KEY,
+                        depth           REAL DEFAULT 0.0 CHECK(depth >= 0.0 AND depth <= 1.0),
+                        extension_score REAL DEFAULT 0.0 CHECK(extension_score >= 0.0 AND extension_score <= 1.0),
+                        directory_score REAL DEFAULT 0.0 CHECK(directory_score >= 0.0 AND directory_score <= 1.0),
+                        filename_score  REAL DEFAULT 0.0 CHECK(filename_score >= 0.0 AND filename_score <= 1.0),
+                        FOREIGN KEY (path) REFERENCES files(path) ON DELETE CASCADE
+                    );
+                """);
         }
     }
 }
-

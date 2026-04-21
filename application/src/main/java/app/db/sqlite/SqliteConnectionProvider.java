@@ -27,6 +27,7 @@ public final class SqliteConnectionProvider {
             stmt.execute("PRAGMA busy_timeout = " + SQLITE_BUSY_TIMEOUT_MS + ";");
             stmt.execute("PRAGMA journal_mode = " + SQLITE_JOURNAL_MODE + ";");
             stmt.execute("PRAGMA synchronous = " + SQLITE_SYNCHRONOUS + ";");
+            stmt.execute("PRAGMA foreign_keys = ON;");
         } catch (SQLException ignored) {
         }
         return conn;
