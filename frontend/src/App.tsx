@@ -153,6 +153,8 @@ function buildHighlightTerms(raw: string): string[] {
   while ((m = metaRe.exec(trimmed)) !== null) {
     const key = m[1].toLowerCase()
     if ((key === 'ext' || key === 'extension') && m[2]) fromFilters.push(m[2])
+    if (key === 'content' && m[2]) fromFilters.push(m[2])
+    if (key === 'path' && m[2]) fromFilters.push(m[2])
   }
 
   let rest = trimmed.replace(/[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+/g, ' ')
@@ -635,6 +637,12 @@ function App() {
               <code>name.ext</code> — if the whole query looks like a file name, it matches filename only.
             </li>
             <li>
+              <code>path:A/B</code> — files in that path.
+            </li>
+            <li>
+              <code>content:some text</code> — files containing the specified text.
+            </li>
+            <li>
               <code>ext:java</code> — files with that extension (also <code>extension:md</code>).
             </li>
             <li>
@@ -694,7 +702,11 @@ function App() {
                 </p>
                 <p className="meta-item meta-item-wide">
                   <span className="meta-label">Folder</span>
-                  <span className="meta-value">{getFolderPath(result.path)}</span>
+                  <span className="meta-value">
+                    {highlightTerms.length > 0
+                      ? highlightText(getFolderPath(result.path), highlightTerms, `${result.path}-fp`)
+                      : getFolderPath(result.path)}
+                  </span>
                 </p>
               </div>
               <pre className="preview-snippet">
