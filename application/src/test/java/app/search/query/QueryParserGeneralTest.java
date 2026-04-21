@@ -53,5 +53,59 @@ class QueryParserGeneralTest {
         assertEquals("config", q.value());
         assertEquals("json", q.filters().get("ext"));
     }
-}
+    
+    @Test
+    void parse_duplicateContentQualifier_combinesWithAnd() {
+        QueryParser parser = new QueryParser();
+        Query q = parser.parse("content:hello content:world");
+        assertEquals(QueryType.METADATA, q.type());
+        assertEquals("hello AND world", q.filters().get("content"));
+    }
 
+    @Test
+    void parse_duplicatePathQualifier_combinesWithAnd() {
+        QueryParser parser = new QueryParser();
+        Query q = parser.parse("path:A path:B");
+        assertEquals(QueryType.METADATA, q.type());
+        assertEquals("A AND B", q.filters().get("path"));
+    }
+
+    @Test
+    void parse_duplicateExtQualifier_combinesWithAnd() {
+        QueryParser parser = new QueryParser();
+        Query q = parser.parse("ext:java ext:kt");
+        assertEquals(QueryType.METADATA, q.type());
+        assertEquals("java AND kt", q.filters().get("ext"));
+    }
+
+    @Test
+    void parse_singleQualifier_isNotAndJoined() {
+        QueryParser parser = new QueryParser();
+        Query q = parser.parse("content:hello");
+        assertEquals("hello", q.filters().get("content"),
+                "Single qualifier value should not have AND appended");
+    }
+
+    @Test
+    void parse_qualifierOrder_doesNotAffectResult() {
+        QueryParser parser = new QueryParser();
+        Query q1 = parser.parse("path:Documents content:report");
+        Query q2 = parser.parse("content:report path:Documents");
+
+        assertEquals(q1.type(), q2.type());
+        assertEquals(q1.value(), q2.value());
+        assertEquals(q1.filters().get("path"), q2.filters().get("path"));
+        assertEquals(q1.filters().get("content"), q2.filters().get("content"));
+    }
+
+    @Test
+    void parse_threeQualifiersAnyOrder_producesSameFilters() {
+        QueryParser parser = new QueryParser();
+        Query q1 = parser.parse("ext:java path:src modified:2024-01-01");
+        Query q2 = parser.parse("modified:2024-01-01 ext:java path:src");
+        Query q3 = parser.parse("path:src modified:2024-01-01 ext:java");
+
+        assertEquals(q1.filters(), q2.filters());
+        assertEquals(q1.filters(), q3.filters());
+    }
+}
