@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
 public class QueryParser {
 
     private static final Pattern METADATA_PATTERN =
-            Pattern.compile("([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)");
+            Pattern.compile("([a-zA-Z0-9_.-]+):([^\\s]+)");
 
     private static final Pattern FILENAME_PATTERN =
             Pattern.compile("^[a-zA-Z0-9._-]+\\.[a-zA-Z0-9]{2,}$");

@@ -156,9 +156,21 @@ public class QueryBuilder {
         if (!filters.containsKey("path")) {
             return;
         }
+        String rawPathFilter = filters.get("path");
+        if (rawPathFilter == null || rawPathFilter.isBlank()) {
+            return;
+        }
 
-        conditions.add("f.path LIKE ?");
-        params.add("%" + filters.get("path") + "%");
+        String[] segments = rawPathFilter.split("\\s+AND\\s+");
+        for (String segment : segments) {
+            String value = segment.trim();
+            if (value.isEmpty()) {
+                continue;
+            }
+            // normalize stored Windows paths (\) to Unix-style (/) so path:src/main works cross-platform.
+            conditions.add("REPLACE(f.path, char(92), '/') LIKE ?");
+            params.add("%" + value.replace('\\', '/') + "%");
+        }
     }
 
     private String toFtsPrefixQuery(String input) {

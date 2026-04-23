@@ -108,4 +108,14 @@ class QueryParserGeneralTest {
         assertEquals(q1.filters(), q2.filters());
         assertEquals(q1.filters(), q3.filters());
     }
+
+    @Test
+    void parse_pathQualifierWithSlash_preservesFullPathToken() {
+        QueryParser parser = new QueryParser();
+        Query q = parser.parse("path:src/main content:todo");
+
+        assertEquals(QueryType.METADATA, q.type());
+        assertEquals("src/main", q.filters().get("path"));
+        assertEquals("todo", q.filters().get("content"));
+    }
 }

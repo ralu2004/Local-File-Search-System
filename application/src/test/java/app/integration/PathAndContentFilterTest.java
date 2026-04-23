@@ -149,4 +149,60 @@ class PathAndContentFilterTest {
         assertTrue(results.stream().noneMatch(r -> r.path().equals(wrongContent)),
                 "File with wrong content should be excluded");
     }
+
+    @Test
+    void duplicatePathQualifiersRequireAllSegments(@TempDir Path tempDir) throws IOException, SQLException {
+        Path root = tempDir.resolve("root");
+        Path srcMainDir = root.resolve("src").resolve("main");
+        Path srcOnlyDir = root.resolve("src");
+        Path mainOnlyDir = root.resolve("main");
+
+        Files.createDirectories(srcMainDir);
+        Files.createDirectories(srcOnlyDir);
+        Files.createDirectories(mainOnlyDir);
+
+        Path fullMatch = srcMainDir.resolve("a.txt");
+        Path srcOnly = srcOnlyDir.resolve("b.txt");
+        Path mainOnly = mainOnlyDir.resolve("c.txt");
+
+        TestUtils.writeTextFile(fullMatch, "needle", T);
+        TestUtils.writeTextFile(srcOnly, "needle", T);
+        TestUtils.writeTextFile(mainOnly, "needle", T);
+
+        String dbPath = tempDir.resolve("path-duplicate-and.db").toString();
+        TestUtils.indexDirectory(dbPath, root, List.of(), 10, 3, 50);
+
+        List<SearchResult> results = TestUtils.search(dbPath, "path:src path:main", 20);
+        assertTrue(results.stream().anyMatch(r -> r.path().equals(fullMatch)),
+                "File under src/main should match both path qualifiers");
+        assertTrue(results.stream().noneMatch(r -> r.path().equals(srcOnly)),
+                "File matching only src should be excluded");
+        assertTrue(results.stream().noneMatch(r -> r.path().equals(mainOnly)),
+                "File matching only main should be excluded");
+    }
+
+    @Test
+    void pathQualifierWithSlashMatchesNestedSegment(@TempDir Path tempDir) throws IOException, SQLException {
+        Path root = tempDir.resolve("root");
+        Path srcMainDir = root.resolve("src").resolve("main");
+        Path srcTestDir = root.resolve("src").resolve("test");
+
+        Files.createDirectories(srcMainDir);
+        Files.createDirectories(srcTestDir);
+
+        Path slashMatch = srcMainDir.resolve("match.txt");
+        Path slashMiss = srcTestDir.resolve("miss.txt");
+
+        TestUtils.writeTextFile(slashMatch, "content", T);
+        TestUtils.writeTextFile(slashMiss, "content", T);
+
+        String dbPath = tempDir.resolve("path-slash.db").toString();
+        TestUtils.indexDirectory(dbPath, root, List.of(), 10, 3, 50);
+
+        List<SearchResult> results = TestUtils.search(dbPath, "path:src/main", 20);
+        assertTrue(results.stream().anyMatch(r -> r.path().equals(slashMatch)),
+                "Expected src/main path to be matched");
+        assertTrue(results.stream().noneMatch(r -> r.path().equals(slashMiss)),
+                "Expected non-src/main path to be excluded");
+    }
 }

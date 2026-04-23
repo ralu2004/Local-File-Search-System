@@ -63,12 +63,25 @@ class QueryBuilderTest {
         Query query = new Query(QueryType.METADATA, null, Map.of("path", "Documents/Work"));
         BuiltQuery built = builder.build(query, 10);
 
-        assertTrue(built.sql().contains("f.path LIKE ?"),
-                "Expected LIKE condition on f.path");
+        assertTrue(built.sql().contains("REPLACE(f.path, char(92), '/') LIKE ?"),
+                "Expected normalized LIKE condition on path");
         assertTrue(built.params().contains("%Documents/Work%"),
                 "Expected wildcard-wrapped path param");
         assertFalse(built.sql().contains("files_fts MATCH"),
                 "Path-only filter should not trigger FTS");
+    }
+
+    @Test
+    void duplicatePathFilterProducesAndedLikeConditions() {
+        Query query = new Query(QueryType.METADATA, null, Map.of("path", "src AND main"));
+        BuiltQuery built = builder.build(query, 10);
+
+        assertTrue(built.sql().contains("REPLACE(f.path, char(92), '/') LIKE ? AND REPLACE(f.path, char(92), '/') LIKE ?"),
+                "Duplicate path qualifiers should expand to AND-ed LIKE conditions");
+        assertTrue(built.params().contains("%src%"),
+                "Expected first path segment wildcard param");
+        assertTrue(built.params().contains("%main%"),
+                "Expected second path segment wildcard param");
     }
 
     @Test
@@ -78,8 +91,8 @@ class QueryBuilderTest {
 
         assertTrue(built.sql().contains("files_fts MATCH ?"),
                 "Expected FTS MATCH for free term");
-        assertTrue(built.sql().contains("f.path LIKE ?"),
-                "Expected LIKE condition for path filter");
+        assertTrue(built.sql().contains("REPLACE(f.path, char(92), '/') LIKE ?"),
+                "Expected normalized LIKE condition for path filter");
         assertTrue(built.params().contains("%Finance%"),
                 "Expected wildcard-wrapped path param");
     }
@@ -91,8 +104,8 @@ class QueryBuilderTest {
 
         assertTrue(built.sql().contains("files_fts MATCH ?"),
                 "Expected FTS MATCH for content filter");
-        assertTrue(built.sql().contains("f.path LIKE ?"),
-                "Expected LIKE condition for path filter");
+        assertTrue(built.sql().contains("REPLACE(f.path, char(92), '/') LIKE ?"),
+                "Expected normalized LIKE condition for path filter");
         assertTrue(built.params().contains("content:TODO"),
                 "Expected content FTS param");
         assertTrue(built.params().contains("%Projects%"),
