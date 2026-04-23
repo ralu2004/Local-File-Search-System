@@ -9,6 +9,7 @@ import app.db.sqlite.SqliteIndexRunRepository;
 import app.repository.FileRepository;
 import app.repository.IndexRunRepository;
 import app.search.query.Query;
+import app.search.ranking.RankingStrategy;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -31,19 +32,15 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
     private final SqliteFileRepository fileRepository;
     private final SqliteIndexRunRepository indexRunRepository;
 
-    public Database(String dbPath, QueryBuilder queryBuilder) throws IOException, SQLException {
+    public Database(String dbPath) throws IOException, SQLException {
         Path path = Paths.get(dbPath);
         Files.createDirectories(path.getParent());
 
         String jdbcUrl = "jdbc:sqlite:" + dbPath;
         this.connections = new SqliteConnectionProvider(jdbcUrl);
-        this.fileRepository = new SqliteFileRepository(connections, queryBuilder);
+        this.fileRepository = new SqliteFileRepository(connections);
         this.indexRunRepository = new SqliteIndexRunRepository(connections);
         initializeSchema();
-    }
-
-    public Database(String dbPath) throws SQLException, IOException {
-        this(dbPath, new QueryBuilder());
     }
 
     public Database() throws SQLException, IOException {
@@ -77,8 +74,8 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
     }
 
     @Override
-    public List<SearchResult> search(Query query, int limit) throws SQLException {
-        return fileRepository.search(query, limit);
+    public List<SearchResult> search(Query query, int limit, RankingStrategy strategy) throws SQLException {
+        return fileRepository.search(query, limit, strategy);
     }
 
     @Override

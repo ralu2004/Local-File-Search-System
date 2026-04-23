@@ -1,6 +1,8 @@
 package app.db;
 
 import app.search.query.Query;
+import app.search.ranking.RankingStrategy;
+import app.search.ranking.StaticRankingStrategy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,14 +17,26 @@ public class QueryBuilder {
     
     private record Part(String text, boolean isQuoteMarker, boolean inQuotes) {}
 
+    private static final RankingStrategy DEFAULT_STRATEGY = new StaticRankingStrategy();
+
+    private final RankingStrategy rankingStrategy;
+
+    public QueryBuilder() {
+        this(DEFAULT_STRATEGY);
+    }
+
+    public QueryBuilder(RankingStrategy rankingStrategy) {
+        this.rankingStrategy = rankingStrategy;
+    }
+
     public BuiltQuery build(Query query, int limit) {
         StringBuilder sql = new StringBuilder();
         List<Object> params = new ArrayList<>();
-        boolean hasFtsTerm = hasFtsTerm(query) || query.filters().containsKey("content");
+        boolean usesFts = hasFtsTerm(query) || query.filters().containsKey("content");
 
         appendBaseSelect(sql, params, query);
         appendFilters(sql, query.filters(), params);
-        appendOrdering(sql, hasFtsTerm);
+        appendOrdering(sql, usesFts);
         appendLimit(sql, params, limit);
         return new BuiltQuery(sql.toString(), params);
     }
@@ -72,6 +86,7 @@ public class QueryBuilder {
                 SELECT m.path, m.filename, m.preview, f.extension, f.modified_at, f.size_bytes
                 FROM matched m
                 JOIN files f ON f.path = m.path
+                LEFT JOIN path_features pf ON pf.path = f.path
                 """);
     }
 
@@ -80,12 +95,15 @@ public class QueryBuilder {
                 SELECT fts.path, fts.filename, fts.preview, f.extension, f.modified_at, f.size_bytes
                 FROM files f
                 JOIN files_fts fts ON fts.path = f.path
+                LEFT JOIN path_features pf ON pf.path = f.path
                 """);
     }
 
-    private void appendOrdering(StringBuilder sql, boolean hasFtsTerm) {
-        if (hasFtsTerm) {
-            sql.append(" ORDER BY m.rank");
+    private void appendOrdering(StringBuilder sql, boolean usesFts) {
+        if (usesFts) {
+            sql.append(" ORDER BY m.rank, ").append(rankingStrategy.orderByClause());
+        } else {
+            sql.append(" ORDER BY ").append(rankingStrategy.orderByClause());
         }
     }
 

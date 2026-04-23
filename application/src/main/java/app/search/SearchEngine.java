@@ -4,6 +4,8 @@ import app.model.SearchResult;
 import app.repository.FileSearchRepository;
 import app.search.query.Query;
 import app.search.query.QueryParser;
+import app.search.ranking.RankingStrategy;
+import app.search.ranking.RankingStrategyResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,7 +39,8 @@ public class SearchEngine {
     public List<SearchResult> search(String input) throws SQLException {
         try {
             Query query = parser.parse(input);
-            return repository.search(query, limit);
+            RankingStrategy rankingStrategy = RankingStrategyResolver.getRankingStrategy(query.filters().get("sort"));
+            return repository.search(query, limit, rankingStrategy);
         } catch (IllegalArgumentException e) {
             log.warn("Invalid query input: {}", e.getMessage());
             return List.of();

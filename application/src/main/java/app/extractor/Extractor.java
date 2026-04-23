@@ -1,7 +1,9 @@
 package app.extractor;
 
+import app.indexer.PathFeatureExtractor;
 import app.model.FileRecord;
 import app.model.ExtractedRecord;
+import app.search.ranking.PathFeatures;
 
 import java.io.*;
 import java.nio.charset.CharsetDecoder;
@@ -12,6 +14,9 @@ import java.util.List;
 
 /**
  * Reads textual file content and derives a preview snippet for indexing.
+ * <p>
+ * Also extracts {@link PathFeatures} via {@link PathFeatureExtractor} so that
+ * ranking signals are computed and stored alongside content at index time.
  */
 public class Extractor {
 
@@ -20,14 +25,20 @@ public class Extractor {
 
     private final int previewLines;
     private final long maxFileSize;
+    private final PathFeatureExtractor pathFeatureExtractor;
 
     public Extractor() {
         this(DEFAULT_PREVIEW_LINES, DEFAULT_MAX_FILE_SIZE);
     }
 
     public Extractor(int previewLines, long maxFileSize) {
+        this(previewLines, maxFileSize, new PathFeatureExtractor());
+    }
+
+    public Extractor(int previewLines, long maxFileSize, PathFeatureExtractor pathFeatureExtractor) {
         this.previewLines = previewLines;
         this.maxFileSize = maxFileSize;
+        this.pathFeatureExtractor = pathFeatureExtractor;
     }
 
     public String extract(FileRecord record) {
@@ -44,7 +55,8 @@ public class Extractor {
 
         int previewLimit = Math.min(previewLines, lines.size());
         String preview = String.join(System.lineSeparator(), lines.subList(0, previewLimit));
-        return new ExtractedRecord(record, content, preview);
+        PathFeatures features = pathFeatureExtractor.extract(record.path());
+        return new ExtractedRecord(record, content, preview, features);
     }
 
     private List<String> readLines(FileRecord record, int maxLines) {

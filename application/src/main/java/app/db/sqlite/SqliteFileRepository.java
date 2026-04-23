@@ -7,6 +7,8 @@ import app.model.FileRecord;
 import app.model.SearchResult;
 import app.repository.FileRepository;
 import app.search.query.Query;
+import app.search.ranking.PathFeatures;
+import app.search.ranking.RankingStrategy;
 
 import java.nio.file.Path;
 import java.sql.*;
@@ -15,58 +17,35 @@ import java.util.*;
 
 /**
  * SQLite implementation of {@link app.repository.FileRepository}: persists file
- * rows and FTS rows, runs search via {@link app.db.QueryBuilder}, and maps
- * results with {@link SqliteRowMappers}.
+ * rows, FTS rows, and path feature rows, runs search via {@link app.db.QueryBuilder},
+ * and maps results with {@link SqliteRowMappers}.
  */
 public final class SqliteFileRepository implements FileRepository {
 
     private static final String FILE_COLUMNS = "path, filename, extension, size_bytes, created_at, modified_at";
 
-    private final QueryBuilder queryBuilder;
     private final SqliteConnectionProvider connections;
 
-    public SqliteFileRepository(SqliteConnectionProvider connections, QueryBuilder queryBuilder) {
+    public SqliteFileRepository(SqliteConnectionProvider connections) {
         this.connections = connections;
-        this.queryBuilder = queryBuilder;
     }
 
     @Override
     public void upsert(FileRecord record, String content, String preview) throws SQLException {
+        upsertWithFeatures(record, content, preview, new PathFeatures(0.0, 0.0, 0.0, 0.0));
+    }
+
+    /**
+     * Upserts a single file record with its extracted path features.
+     */
+    public void upsertWithFeatures(FileRecord record, String content, String preview,
+                                   PathFeatures features) throws SQLException {
         try (Connection conn = connections.open()) {
             conn.setAutoCommit(false);
             try {
-                String statement = """
-                        INSERT OR REPLACE INTO files (path, filename, extension, size_bytes, created_at, modified_at, indexed_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """;
-                try (PreparedStatement stmt = conn.prepareStatement(statement)) {
-                    stmt.setString(1, record.path().toString());
-                    stmt.setString(2, record.filename());
-                    stmt.setString(3, record.extension());
-                    stmt.setLong(4, record.sizeBytes());
-                    stmt.setString(5, record.createdAt().toString());
-                    stmt.setString(6, record.modifiedAt().toString());
-                    stmt.setString(7, LocalDateTime.now().toString());
-                    stmt.executeUpdate();
-                }
-
-                statement = "DELETE FROM files_fts WHERE path = ?";
-                try (PreparedStatement stmt = conn.prepareStatement(statement)) {
-                    stmt.setString(1, record.path().toString());
-                    stmt.executeUpdate();
-                }
-
-                statement = """
-                        INSERT OR REPLACE INTO files_fts (path, filename, content, preview)
-                        VALUES (?, ?, ?, ?)
-                        """;
-                try (PreparedStatement stmt = conn.prepareStatement(statement)) {
-                    stmt.setString(1, record.path().toString());
-                    stmt.setString(2, record.filename());
-                    stmt.setString(3, content);
-                    stmt.setString(4, preview);
-                    stmt.executeUpdate();
-                }
+                upsertFilesRow(conn, record);
+                upsertFtsRow(conn, record, content, preview);
+                upsertFeaturesRow(conn, record.path(), features);
                 conn.commit();
             } catch (SQLException e) {
                 conn.rollback();
@@ -91,12 +70,18 @@ public final class SqliteFileRepository implements FileRepository {
                         INSERT INTO files_fts (path, filename, content, preview)
                         VALUES (?, ?, ?, ?)
                         """;
+                String featuresStmt = """
+                        INSERT OR REPLACE INTO path_features (path, depth, extension_score, directory_score, filename_score)
+                        VALUES (?, ?, ?, ?, ?)
+                        """;
 
-                try (PreparedStatement fs = conn.prepareStatement(filesStmt);
-                     PreparedStatement df = conn.prepareStatement(deleteFts);
-                     PreparedStatement fts = conn.prepareStatement(ftsStmt)) {
+                try (PreparedStatement fs  = conn.prepareStatement(filesStmt);
+                     PreparedStatement df  = conn.prepareStatement(deleteFts);
+                     PreparedStatement fts = conn.prepareStatement(ftsStmt);
+                     PreparedStatement pf  = conn.prepareStatement(featuresStmt)) {
 
                     for (ExtractedRecord r : records) {
+                        // files row
                         fs.setString(1, r.record().path().toString());
                         fs.setString(2, r.record().filename());
                         fs.setString(3, r.record().extension());
@@ -106,19 +91,30 @@ public final class SqliteFileRepository implements FileRepository {
                         fs.setString(7, LocalDateTime.now().toString());
                         fs.addBatch();
 
+                        // delete stale FTS row
                         df.setString(1, r.record().path().toString());
                         df.addBatch();
 
+                        // FTS row
                         fts.setString(1, r.record().path().toString());
                         fts.setString(2, r.record().filename());
                         fts.setString(3, r.content());
                         fts.setString(4, r.preview());
                         fts.addBatch();
+
+                        // path_features row
+                        pf.setString(1, r.record().path().toString());
+                        pf.setDouble(2, r.features().depth());
+                        pf.setDouble(3, r.features().extensionScore());
+                        pf.setDouble(4, r.features().directoryScore());
+                        pf.setDouble(5, r.features().filenameScore());
+                        pf.addBatch();
                     }
 
                     fs.executeBatch();
                     df.executeBatch();
                     fts.executeBatch();
+                    pf.executeBatch();
                 }
                 conn.commit();
             } catch (SQLException e) {
@@ -135,14 +131,12 @@ public final class SqliteFileRepository implements FileRepository {
         try (Connection conn = connections.open()) {
             conn.setAutoCommit(false);
             try {
-                String statement = "DELETE FROM files WHERE path = ?";
-                try (PreparedStatement stmt = conn.prepareStatement(statement)) {
+                // path_features deleted automatically via ON DELETE CASCADE
+                try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM files WHERE path = ?")) {
                     stmt.setString(1, path.toString());
                     stmt.executeUpdate();
                 }
-
-                statement = "DELETE FROM files_fts WHERE path = ?";
-                try (PreparedStatement stmt = conn.prepareStatement(statement)) {
+                try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM files_fts WHERE path = ?")) {
                     stmt.setString(1, path.toString());
                     stmt.executeUpdate();
                 }
@@ -163,8 +157,8 @@ public final class SqliteFileRepository implements FileRepository {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TEMP TABLE IF NOT EXISTS crawled_paths (path TEXT PRIMARY KEY);");
 
-                String insert = "INSERT OR IGNORE INTO crawled_paths (path) VALUES (?)";
-                try (PreparedStatement insertStmt = conn.prepareStatement(insert)) {
+                try (PreparedStatement insertStmt = conn.prepareStatement(
+                        "INSERT OR IGNORE INTO crawled_paths (path) VALUES (?)")) {
                     for (Path path : paths) {
                         insertStmt.setString(1, path.toString());
                         insertStmt.addBatch();
@@ -178,6 +172,7 @@ public final class SqliteFileRepository implements FileRepository {
                     if (rs.next()) deleted = rs.getInt(1);
                 }
 
+                // path_features cleaned up automatically via ON DELETE CASCADE
                 stmt.execute("DELETE FROM files WHERE path NOT IN (SELECT path FROM crawled_paths);");
                 stmt.execute("DELETE FROM files_fts WHERE path NOT IN (SELECT path FROM crawled_paths);");
                 stmt.execute("DROP TABLE IF EXISTS crawled_paths;");
@@ -194,7 +189,8 @@ public final class SqliteFileRepository implements FileRepository {
     }
 
     @Override
-    public List<SearchResult> search(Query query, int limit) throws SQLException {
+    public List<SearchResult> search(Query query, int limit, RankingStrategy strategy) throws SQLException {
+        QueryBuilder queryBuilder = new QueryBuilder(strategy);
         BuiltQuery builtQuery = queryBuilder.build(query, limit);
         return queryResults(builtQuery.sql(), builtQuery.params());
     }
@@ -251,6 +247,53 @@ public final class SqliteFileRepository implements FileRepository {
         }
     }
 
+    private void upsertFilesRow(Connection conn, FileRecord record) throws SQLException {
+        String sql = """
+                INSERT OR REPLACE INTO files (path, filename, extension, size_bytes, created_at, modified_at, indexed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """;
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, record.path().toString());
+            stmt.setString(2, record.filename());
+            stmt.setString(3, record.extension());
+            stmt.setLong(4, record.sizeBytes());
+            stmt.setString(5, record.createdAt().toString());
+            stmt.setString(6, record.modifiedAt().toString());
+            stmt.setString(7, LocalDateTime.now().toString());
+            stmt.executeUpdate();
+        }
+    }
+
+    private void upsertFtsRow(Connection conn, FileRecord record, String content, String preview) throws SQLException {
+        try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM files_fts WHERE path = ?")) {
+            stmt.setString(1, record.path().toString());
+            stmt.executeUpdate();
+        }
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "INSERT OR REPLACE INTO files_fts (path, filename, content, preview) VALUES (?, ?, ?, ?)")) {
+            stmt.setString(1, record.path().toString());
+            stmt.setString(2, record.filename());
+            stmt.setString(3, content);
+            stmt.setString(4, preview);
+            stmt.executeUpdate();
+        }
+    }
+
+    private void upsertFeaturesRow(Connection conn, Path path, PathFeatures features) throws SQLException {
+        String sql = """
+                INSERT OR REPLACE INTO path_features (path, depth, extension_score, directory_score, filename_score)
+                VALUES (?, ?, ?, ?, ?)
+                """;
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, path.toString());
+            stmt.setDouble(2, features.depth());
+            stmt.setDouble(3, features.extensionScore());
+            stmt.setDouble(4, features.directoryScore());
+            stmt.setDouble(5, features.filenameScore());
+            stmt.executeUpdate();
+        }
+    }
+
     private List<FileRecord> queryFiles(String sql, Object... params) throws SQLException {
         List<FileRecord> files = new ArrayList<>();
         try (Connection conn = connections.open();
@@ -283,4 +326,3 @@ public final class SqliteFileRepository implements FileRepository {
         return results;
     }
 }
-

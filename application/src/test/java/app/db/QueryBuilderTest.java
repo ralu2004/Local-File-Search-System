@@ -2,6 +2,8 @@ package app.db;
 
 import app.search.query.Query;
 import app.search.query.QueryType;
+import app.search.ranking.AlphabeticalRankingStrategy;
+import app.search.ranking.DateRankingStrategy;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -113,5 +115,27 @@ class QueryBuilderTest {
 
         assertFalse(built.sql().contains("ORDER BY m.rank"),
                 "Path-only filter should not order by FTS rank");
+    }
+
+    @Test
+    void noFtsUsesInjectedRankingStrategyOrderClause() {
+        QueryBuilder customBuilder = new QueryBuilder(new AlphabeticalRankingStrategy());
+        Query query = new Query(QueryType.METADATA, null, Map.of("ext", "java"));
+        BuiltQuery built = customBuilder.build(query, 10);
+
+        assertTrue(built.sql().contains("ORDER BY f.filename ASC"),
+                "Non-FTS query should use injected ranking strategy order");
+        assertFalse(built.sql().contains("ORDER BY m.rank"),
+                "Non-FTS query should not include FTS rank ordering");
+    }
+
+    @Test
+    void ftsQueryKeepsRankThenAppliesInjectedRankingStrategy() {
+        QueryBuilder customBuilder = new QueryBuilder(new DateRankingStrategy());
+        Query query = new Query(QueryType.MIXED, "config", Map.of("ext", "json"));
+        BuiltQuery built = customBuilder.build(query, 10);
+
+        assertTrue(built.sql().contains("ORDER BY m.rank, f.modified_at DESC"),
+                "FTS query should order by rank first and strategy second");
     }
 }
