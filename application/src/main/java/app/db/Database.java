@@ -1,13 +1,11 @@
 package app.db;
 
+import app.db.sqlite.*;
 import app.indexer.IndexReport;
 import app.model.*;
-import app.db.sqlite.SchemaInitializer;
-import app.db.sqlite.SqliteConnectionProvider;
-import app.db.sqlite.SqliteFileRepository;
-import app.db.sqlite.SqliteIndexRunRepository;
 import app.repository.FileRepository;
 import app.repository.IndexRunRepository;
+import app.repository.SearchActivityRepository;
 import app.search.query.Query;
 import app.search.ranking.RankingStrategy;
 
@@ -21,16 +19,18 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * SQLite-backed facade for file indexing and index-run history.
- * Delegates to {@link app.db.sqlite.SqliteFileRepository} and
- * {@link app.db.sqlite.SqliteIndexRunRepository}; creates the DB file parent
- * directory and applies schema on construction.
+ * SQLite-backed facade for file indexing, index-run history, and search activity.
+ * Delegates to {@link app.db.sqlite.SqliteFileRepository},
+ * {@link app.db.sqlite.SqliteIndexRunRepository}, and
+ * {@link app.db.sqlite.SqliteSearchActivityRepository}; creates the DB file
+ * parent directory and applies schema on construction.
  */
-public class Database implements FileRepository, IndexRunRepository, AutoCloseable {
+public class Database implements FileRepository, IndexRunRepository, SearchActivityRepository, AutoCloseable {
 
     private final SqliteConnectionProvider connections;
     private final SqliteFileRepository fileRepository;
     private final SqliteIndexRunRepository indexRunRepository;
+    private final SqliteSearchActivityRepository searchActivityRepository;
 
     public Database(String dbPath) throws IOException, SQLException {
         Path path = Paths.get(dbPath);
@@ -40,6 +40,7 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
         this.connections = new SqliteConnectionProvider(jdbcUrl);
         this.fileRepository = new SqliteFileRepository(connections);
         this.indexRunRepository = new SqliteIndexRunRepository(connections);
+        this.searchActivityRepository = new SqliteSearchActivityRepository(connections);
         initializeSchema();
     }
 
@@ -121,6 +122,26 @@ public class Database implements FileRepository, IndexRunRepository, AutoCloseab
     @Override
     public void optimizeFts() throws SQLException {
         fileRepository.optimizeFts();
+    }
+
+    @Override
+    public void recordSearch(String queryText, String normalizedQuery, int resultCount, long durationMs, String executedAt) throws SQLException {
+        searchActivityRepository.recordSearch(queryText, normalizedQuery, resultCount, durationMs, executedAt);
+    }
+
+    @Override
+    public void recordResultOpen(String queryText, String normalizedQuery, String filePath, Integer resultPosition, String openedAt) throws SQLException {
+        searchActivityRepository.recordResultOpen(queryText, normalizedQuery, filePath, resultPosition, openedAt);
+    }
+
+    @Override
+    public List<String> suggestQueries(String normalizedPrefix, int limit) throws SQLException {
+        return searchActivityRepository.suggestQueries(normalizedPrefix, limit);
+    }
+
+    @Override
+    public List<String> recentQueries(int limit) throws SQLException {
+        return searchActivityRepository.recentQueries(limit);
     }
 
     private Connection getConnection() throws SQLException {
