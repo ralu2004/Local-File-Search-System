@@ -138,6 +138,31 @@ public class ApiServer implements AutoCloseable {
             }
         });
 
+        app.get("/api/search/suggest", ctx -> {
+            String query = ctx.queryParam("q");
+            if (query == null) query = "";
+            String dbPath = ctx.queryParam("db");
+            int limit = parsePositiveInt(ctx.queryParam("limit"), 10);
+            int capped = Math.min(Math.max(limit, 1), 20);
+            try {
+                writeJson(ctx, searchService.suggestQueries(dbPath, query, capped));
+            } catch (SQLException | IOException e) {
+                log.error("Search suggest failed", e);
+                writeJson(ctx.status(500), new ErrorResponse("SEARCH_SUGGEST_FAILED", "Search suggest failed."));
+            }
+        });
+
+        app.get("/api/search/history", ctx -> {
+            String dbPath = ctx.queryParam("db");
+            int limit = parsePositiveInt(ctx.queryParam("limit"), 10);
+            int capped = Math.min(Math.max(limit, 1), 20);
+            try {
+                writeJson(ctx, searchService.recentQueries(dbPath, capped));
+            } catch (SQLException | IOException e) {
+                log.error("Search history failed", e);
+                writeJson(ctx.status(500), new ErrorResponse("SEARCH_HISTORY_FAILED", "Search history failed."));
+            }
+        });
         app.start(port);
         log.info("API server started on port {}", port);
     }
