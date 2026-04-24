@@ -1,4 +1,4 @@
-package app.service;
+package app.service.index;
 
 import app.crawler.Crawler;
 import app.db.Database;
@@ -7,6 +7,7 @@ import app.extractor.Extractor;
 import app.indexer.IndexReport;
 import app.indexer.Indexer;
 import app.indexer.job.IndexingLiveProgress;
+import app.service.support.DatabaseAccessor;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -17,21 +18,21 @@ import java.util.List;
  * Application service for indexing use cases.
  */
 public class IndexService {
-    
+
     private static final int DEFAULT_MAX_FILE_SIZE_MB = 10;
     private static final int DEFAULT_PREVIEW_LINES = 3;
     private static final int DEFAULT_BATCH_SIZE = 250;
 
-    private final DatabaseProvider databaseProvider;
+    private final DatabaseAccessor databaseAccessor;
 
     public IndexService(DatabaseProvider databaseProvider) {
-        this.databaseProvider = databaseProvider;
+        this.databaseAccessor = new DatabaseAccessor(databaseProvider);
     }
 
     public IndexReport indexNow(String dbPath, Path root, List<String> ignoreRules,
                                 int maxFileSizeMb, int previewLines, int batchSize)
             throws SQLException, IOException {
-        try (Database db = openDatabase(dbPath)) {
+        try (Database db = databaseAccessor.openDatabase(dbPath)) {
             return createIndexer(db, root, ignoreRules, maxFileSizeMb, previewLines, batchSize, null).run();
         }
     }
@@ -40,7 +41,7 @@ public class IndexService {
                                            int maxFileSizeMb, int previewLines, int batchSize,
                                            IndexingLiveProgress liveProgress) {
         try {
-            Database db = openDatabase(dbPath);
+            Database db = databaseAccessor.openDatabase(dbPath);
             Crawler crawler = new Crawler(Path.of(root), safeIgnoreRules(ignoreRules));
             Extractor extractor = new Extractor(
                     sanitizePreviewLines(previewLines),
@@ -88,12 +89,5 @@ public class IndexService {
 
     private List<String> safeIgnoreRules(List<String> ignoreRules) {
         return ignoreRules == null ? List.of() : ignoreRules;
-    }
-
-    private Database openDatabase(String dbPath) throws SQLException, IOException {
-        if (dbPath == null || dbPath.isBlank()) {
-            return databaseProvider.openDefault();
-        }
-        return databaseProvider.open(dbPath);
     }
 }

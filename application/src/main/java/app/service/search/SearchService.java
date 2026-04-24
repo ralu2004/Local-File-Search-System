@@ -1,25 +1,34 @@
-package app.service;
+package app.service.search;
 
 import app.db.Database;
 import app.db.DatabaseProvider;
 import app.model.SearchResult;
 import app.search.SearchEngine;
 import app.search.query.QueryParser;
+import app.service.support.DatabaseAccessor;
 
 import java.io.IOException;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Application service for search use cases.
+ * Executes searches and publishes search events to registered observers.
  */
 public class SearchService {
-    
-    private final DatabaseProvider databaseProvider;
+
+    private final DatabaseAccessor databaseAccessor;
+    private final List<SearchObserver> searchObservers;
 
     public SearchService(DatabaseProvider databaseProvider) {
-        this.databaseProvider = databaseProvider;
+        this(databaseProvider, List.of(new SearchActivityObserver(databaseProvider)));
+    }
+
+    public SearchService(DatabaseProvider databaseProvider, List<SearchObserver> searchObservers) {
+        this.databaseAccessor = new DatabaseAccessor(databaseProvider);
+        this.searchObservers = new ArrayList<>(searchObservers);
     }
 
     /**
@@ -27,10 +36,10 @@ public class SearchService {
      * suggestions and ranking.
      */
     public List<SearchResult> search(String dbPath, String input, int limit) throws SQLException, IOException {
-        try (Database db = openDatabase(dbPath)) {
+        try (Database db = databaseAccessor.openDatabase(dbPath)) {
             long startedAt = System.nanoTime();
             List<SearchResult> results = executeSearch(db, input, limit);
-            recordSearchActivity(db, input, results.size(), startedAt);
+            recordSearchActivity(dbPath, input, results.size(), startedAt);
             return results;
         }
     }
@@ -41,21 +50,24 @@ public class SearchService {
     }
 
     /**
-     * Persists query activity with normalized query text, result count, and
+     * Notifies observers with normalized query text, result count, and
      * end-to-end duration.
      */
-    private void recordSearchActivity(Database db, String input, int resultCount, long startedAtNanos) throws SQLException {
+    private void recordSearchActivity(String dbPath, String input, int resultCount, long startedAtNanos) throws SQLException, IOException {
         long durationMs = (System.nanoTime() - startedAtNanos) / 1_000_000L;
         String rawQuery = input == null ? "" : input;
         String normalizedQuery = normalizeQuery(input);
-        db.recordSearch(rawQuery, normalizedQuery, resultCount, durationMs, LocalDateTime.now().toString());
+        String executedAt = LocalDateTime.now().toString();
+        for (SearchObserver observer : searchObservers) {
+            observer.onSearchExecuted(dbPath, rawQuery, normalizedQuery, resultCount, durationMs, executedAt);
+        }
     }
 
     /**
      * Returns prefix-based query suggestions from normalized search history.
      */
     public List<String> suggestQueries(String dbPath, String prefix, int limit) throws SQLException, IOException {
-        try (Database db = openDatabase(dbPath)) {
+        try (Database db = databaseAccessor.openDatabase(dbPath)) {
             return db.suggestQueries(normalizeQuery(prefix), limit);
         }
     }
@@ -64,16 +76,9 @@ public class SearchService {
      * Returns recent unique queries ordered by latest usage.
      */
     public List<String> recentQueries(String dbPath, int limit) throws SQLException, IOException {
-        try (Database db = openDatabase(dbPath)) {
+        try (Database db = databaseAccessor.openDatabase(dbPath)) {
             return db.recentQueries(limit);
         }
-    }
-
-    private Database openDatabase(String dbPath) throws SQLException, IOException {
-        if (dbPath == null || dbPath.isBlank()) {
-            return databaseProvider.openDefault();
-        }
-        return databaseProvider.open(dbPath);
     }
 
     /**

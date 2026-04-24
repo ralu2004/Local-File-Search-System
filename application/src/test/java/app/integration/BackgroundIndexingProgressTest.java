@@ -5,7 +5,7 @@ import app.db.SqliteDatabaseProvider;
 import app.indexer.job.BackgroundIndexer;
 import app.indexer.job.IndexingJobSnapshot;
 import app.indexer.job.IndexingJobStatus;
-import app.service.IndexService;
+import app.service.index.IndexService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

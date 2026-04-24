@@ -4,8 +4,8 @@ import app.db.DatabaseProvider;
 import app.db.SqliteDatabaseProvider;
 import app.indexer.IndexReport;
 import app.model.SearchResult;
-import app.service.IndexService;
-import app.service.SearchService;
+import app.service.index.IndexService;
+import app.service.search.SearchService;
 import org.junit.jupiter.api.Assertions;
 
 import java.io.IOException;

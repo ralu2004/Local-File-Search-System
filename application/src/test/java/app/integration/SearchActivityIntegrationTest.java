@@ -3,7 +3,7 @@ package app.integration;
 import app.TestUtils;
 import app.db.DatabaseProvider;
 import app.db.SqliteDatabaseProvider;
-import app.service.SearchService;
+import app.service.search.SearchService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

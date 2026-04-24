@@ -2,8 +2,8 @@ package app.integration;
 
 import app.TestUtils;
 import app.db.SqliteDatabaseProvider;
-import app.service.SearchService;
-import app.service.IndexService;
+import app.service.index.IndexService;
+import app.service.search.SearchService;
 import app.indexer.IndexReport;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
