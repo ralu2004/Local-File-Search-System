@@ -102,6 +102,36 @@ class SearchActivityIntegrationTest {
         assertEquals(List.of("docs", "java", "docker"), recent);
     }
 
+    @Test
+    void recordResultOpen_persistsNormalizedQueryAndPosition(@TempDir Path tempDir) throws IOException, SQLException {
+        Path root = tempDir.resolve("root");
+        Files.createDirectories(root);
+        Path target = root.resolve("alpha.txt");
+        TestUtils.writeTextFile(target, "alpha content", TestUtils.timeSecondsSinceEpoch(1_700_100_030L));
+
+        String dbPath = tempDir.resolve("open-events.db").toString();
+        TestUtils.indexDirectory(dbPath, root, List.of(), 10, 3, 50);
+
+        SearchService service = new SearchService(new SqliteDatabaseProvider());
+        service.recordResultOpen(dbPath, "  Alpha  ", target.toString(), 2);
+
+        try (Connection conn = DriverManager.getConnection(TestUtils.jdbcUrl(dbPath));
+             PreparedStatement stmt = conn.prepareStatement("""
+                     SELECT query_text, normalized_query, file_path, result_position, opened_at
+                     FROM result_open_history
+                     ORDER BY id DESC
+                     LIMIT 1
+                     """);
+             ResultSet rs = stmt.executeQuery()) {
+            assertTrue(rs.next(), "Expected at least one result_open_history row");
+            assertEquals("  Alpha  ", rs.getString("query_text"));
+            assertEquals("alpha", rs.getString("normalized_query"));
+            assertEquals(target.toString(), rs.getString("file_path"));
+            assertEquals(2, rs.getInt("result_position"));
+            assertFalse(rs.getString("opened_at").isBlank(), "Expected opened_at timestamp to be persisted");
+        }
+    }
+
     private static void insertSearchHistory(String dbPath, String query, String normalized, String executedAt) throws SQLException {
         String sql = """
                 INSERT INTO search_history (query_text, normalized_query, result_count, duration_ms, executed_at)

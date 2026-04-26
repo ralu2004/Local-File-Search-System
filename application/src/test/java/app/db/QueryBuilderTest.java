@@ -151,4 +151,52 @@ class QueryBuilderTest {
         assertTrue(built.sql().contains("ORDER BY m.rank, f.modified_at DESC"),
                 "FTS query should order by rank first and strategy second");
     }
+
+    @Test
+    void historyAwareOrderingIsAppliedForFtsQueriesWhenNormalizedQueryPresent() {
+        QueryBuilder customBuilder = new QueryBuilder(new DateRankingStrategy());
+        Query query = new Query(QueryType.MIXED, "config", Map.of("ext", "json"));
+        BuiltQuery built = customBuilder.build(query, 10, "config");
+
+        assertTrue(built.sql().contains("FROM result_open_history"),
+                "Expected result-open history join when normalized query is provided");
+        assertTrue(built.sql().contains("FROM search_history"),
+                "Expected search-history join when normalized query is provided");
+        assertTrue(built.sql().contains("ORDER BY m.rank, COALESCE(roh.open_count, 0) DESC"),
+                "FTS ordering should include history boost signals after rank");
+        assertTrue(built.sql().contains("COALESCE(sh.last_query_at, '') DESC, f.modified_at DESC"),
+                "Strategy ordering should remain as a final tie-breaker");
+        assertEquals(6, built.params().size(), "Expected FTS match + 3 history params + ext filter + limit");
+        assertEquals("config", built.params().get(1));
+        assertEquals("config", built.params().get(2));
+        assertEquals("config", built.params().get(3));
+        assertEquals("json", built.params().get(4));
+    }
+
+    @Test
+    void historyAwareOrderingIsAppliedForNonFtsQueriesWhenNormalizedQueryPresent() {
+        QueryBuilder customBuilder = new QueryBuilder(new AlphabeticalRankingStrategy());
+        Query query = new Query(QueryType.METADATA, null, Map.of("ext", "java"));
+        BuiltQuery built = customBuilder.build(query, 10, "java");
+
+        assertTrue(built.sql().contains("ORDER BY COALESCE(roh.open_count, 0) DESC"),
+                "Non-FTS ordering should start with history boost signals");
+        assertTrue(built.sql().contains("COALESCE(sh.last_query_at, '') DESC, f.filename ASC"),
+                "Ranking strategy should remain as final tie-breaker");
+        assertEquals(5, built.params().size(), "Expected ext + 3 history params + limit");
+    }
+
+    @Test
+    void historyJoinsAreSkippedWhenNormalizedQueryBlank() {
+        QueryBuilder customBuilder = new QueryBuilder(new DateRankingStrategy());
+        Query query = new Query(QueryType.MIXED, "config", Map.of("ext", "json"));
+        BuiltQuery built = customBuilder.build(query, 10, "   ");
+
+        assertFalse(built.sql().contains("result_open_history"),
+                "Blank normalized query should not activate history joins");
+        assertFalse(built.sql().contains("search_history"),
+                "Blank normalized query should not activate history joins");
+        assertTrue(built.sql().contains("ORDER BY m.rank, f.modified_at DESC"),
+                "Ordering should fallback to rank + strategy when history is disabled");
+    }
 }
