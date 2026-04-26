@@ -136,7 +136,7 @@ class QueryBuilderTest {
         Query query = new Query(QueryType.METADATA, null, Map.of("ext", "java"));
         BuiltQuery built = customBuilder.build(query, 10);
 
-        assertTrue(built.sql().contains("ORDER BY f.filename ASC"),
+        assertTrue(built.sql().contains("ORDER BY f.filename COLLATE NOCASE ASC"),
                 "Non-FTS query should use injected ranking strategy order");
         assertFalse(built.sql().contains("ORDER BY m.rank"),
                 "Non-FTS query should not include FTS rank ordering");
@@ -181,7 +181,7 @@ class QueryBuilderTest {
 
         assertTrue(built.sql().contains("ORDER BY COALESCE(roh.open_count, 0) DESC"),
                 "Non-FTS ordering should start with history boost signals");
-        assertTrue(built.sql().contains("COALESCE(sh.last_query_at, '') DESC, f.filename ASC"),
+        assertTrue(built.sql().contains("COALESCE(sh.last_query_at, '') DESC, f.filename COLLATE NOCASE ASC"),
                 "Ranking strategy should remain as final tie-breaker");
         assertEquals(5, built.params().size(), "Expected ext + 3 history params + limit");
     }
@@ -198,5 +198,18 @@ class QueryBuilderTest {
                 "Blank normalized query should not activate history joins");
         assertTrue(built.sql().contains("ORDER BY m.rank, f.modified_at DESC"),
                 "Ordering should fallback to rank + strategy when history is disabled");
+    }
+
+    @Test
+    void explicitSortPrioritizesSelectedStrategyOverFtsRank() {
+        QueryBuilder customBuilder = new QueryBuilder(new AlphabeticalRankingStrategy());
+        Query query = new Query(QueryType.MIXED, "config", Map.of("ext", "json", "sort", "alpha"));
+        BuiltQuery built = customBuilder.build(query, 10, "config");
+
+        assertTrue(
+                built.sql().contains("ORDER BY f.filename COLLATE NOCASE ASC, COALESCE(roh.open_count, 0) DESC")
+                        || built.sql().contains("ORDER BY f.filename COLLATE NOCASE ASC, m.rank"),
+                "Explicit sort should place strategy ordering before FTS rank"
+        );
     }
 }

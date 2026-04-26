@@ -49,15 +49,21 @@ public class QueryBuilder {
         List<Object> params = new ArrayList<>();
         boolean usesFts = hasFtsTerm(query) || query.filters().containsKey("content");
         boolean hasHistorySignal = !normalizedQuery.isBlank();
+        boolean prioritizeStrategy = hasExplicitSort(query);
 
         appendBaseSelect(sql, params, query, hasHistorySignal);
         if (hasHistorySignal) {
             appendHistorySignalParams(params, normalizedQuery);
         }
         appendFilters(sql, query.filters(), params);
-        appendOrdering(sql, usesFts, hasHistorySignal);
+        appendOrdering(sql, usesFts, hasHistorySignal, prioritizeStrategy);
         appendLimit(sql, params, limit);
         return new BuiltQuery(sql.toString(), params);
+    }
+
+    private boolean hasExplicitSort(Query query) {
+        String sort = query.filters().get("sort");
+        return sort != null && !sort.isBlank();
     }
 
     private boolean hasFtsTerm(Query query) {
@@ -151,16 +157,28 @@ public class QueryBuilder {
         params.add(normalizedQuery);
     }
 
-    private void appendOrdering(StringBuilder sql, boolean usesFts, boolean hasHistorySignal) {
+    private void appendOrdering(StringBuilder sql, boolean usesFts, boolean hasHistorySignal, boolean prioritizeStrategy) {
         if (usesFts) {
-            sql.append(" ORDER BY m.rank");
-            if (hasHistorySignal) {
-                sql.append(", COALESCE(roh.open_count, 0) DESC")
-                        .append(", COALESCE(roh.last_opened_at, '') DESC")
-                        .append(", COALESCE(sh.query_count, 0) DESC")
-                        .append(", COALESCE(sh.last_query_at, '') DESC");
+            sql.append(" ORDER BY ");
+            if (prioritizeStrategy) {
+                sql.append(rankingStrategy.orderByClause());
+                if (hasHistorySignal) {
+                    sql.append(", COALESCE(roh.open_count, 0) DESC")
+                            .append(", COALESCE(roh.last_opened_at, '') DESC")
+                            .append(", COALESCE(sh.query_count, 0) DESC")
+                            .append(", COALESCE(sh.last_query_at, '') DESC");
+                }
+                sql.append(", m.rank");
+            } else {
+                sql.append("m.rank");
+                if (hasHistorySignal) {
+                    sql.append(", COALESCE(roh.open_count, 0) DESC")
+                            .append(", COALESCE(roh.last_opened_at, '') DESC")
+                            .append(", COALESCE(sh.query_count, 0) DESC")
+                            .append(", COALESCE(sh.last_query_at, '') DESC");
+                }
+                sql.append(", ").append(rankingStrategy.orderByClause());
             }
-            sql.append(", ").append(rankingStrategy.orderByClause());
         } else {
             sql.append(" ORDER BY ");
             if (hasHistorySignal) {
