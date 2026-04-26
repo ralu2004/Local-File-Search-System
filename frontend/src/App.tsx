@@ -267,10 +267,20 @@ function App() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searchMessage, setSearchMessage] = useState('')
   const [activeSearchQuery, setActiveSearchQuery] = useState('')
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([])
+  const [recentSearches, setRecentSearches] = useState<string[]>([])
+  const [showSuggestionBox, setShowSuggestionBox] = useState(false)
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
+  const [isLoadingRecent, setIsLoadingRecent] = useState(false)
+  const [openEventMessage, setOpenEventMessage] = useState('')
+  const [openedResultPaths, setOpenedResultPaths] = useState<Set<string>>(new Set())
 
   const searchDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const suggestDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hideSuggestionBoxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchAbortRef = useRef<AbortController | null>(null)
   const searchRequestIdRef = useRef(0)
+  const suggestRequestIdRef = useRef(0)
   const [, setIsSearching] = useState(false)
 
   const highlightTerms = useMemo(() => buildHighlightTerms(activeSearchQuery), [activeSearchQuery])
@@ -400,6 +410,15 @@ function App() {
         clearTimeout(searchDebounceTimerRef.current)
         searchDebounceTimerRef.current = null
       }
+      if (suggestDebounceTimerRef.current) {
+        clearTimeout(suggestDebounceTimerRef.current)
+        suggestDebounceTimerRef.current = null
+      }
+      if (hideSuggestionBoxTimerRef.current) {
+        clearTimeout(hideSuggestionBoxTimerRef.current)
+        hideSuggestionBoxTimerRef.current = null
+      }
+      setShowSuggestionBox(false)
       return
     }
 
@@ -419,6 +438,33 @@ function App() {
       }
     }
   }, [query, activeSection, doSearch])
+
+  useEffect(() => {
+    if (activeSection !== 'search') return
+    if (suggestDebounceTimerRef.current) {
+      clearTimeout(suggestDebounceTimerRef.current)
+      suggestDebounceTimerRef.current = null
+    }
+    const trimmed = query.trim()
+    if (!trimmed) {
+      setSearchSuggestions([])
+      return
+    }
+    suggestDebounceTimerRef.current = setTimeout(() => {
+      void fetchSearchSuggestions(trimmed)
+    }, 200)
+    return () => {
+      if (suggestDebounceTimerRef.current) {
+        clearTimeout(suggestDebounceTimerRef.current)
+        suggestDebounceTimerRef.current = null
+      }
+    }
+  }, [query, activeSection])
+
+  useEffect(() => {
+    if (activeSection !== 'search') return
+    void fetchRecentSearches()
+  }, [activeSection])
 
   async function startIndexing(event: FormEvent) {
     event.preventDefault()
@@ -453,6 +499,102 @@ function App() {
   async function runSearch(event: FormEvent) {
     event.preventDefault()
     void doSearch(query)
+  }
+
+  async function fetchSearchSuggestions(prefix: string) {
+    const requestId = ++suggestRequestIdRef.current
+    setIsLoadingSuggestions(true)
+    try {
+      const params = new URLSearchParams({ q: prefix, limit: '8' })
+      const response = await fetch(`${API_BASE}/search/suggest?${params.toString()}`)
+      const payload = (await response.json()) as string[] | { message?: string }
+      if (requestId !== suggestRequestIdRef.current) return
+      if (!response.ok || !Array.isArray(payload)) {
+        setSearchSuggestions([])
+        return
+      }
+      setSearchSuggestions(payload)
+    } catch {
+      if (requestId !== suggestRequestIdRef.current) return
+      setSearchSuggestions([])
+    } finally {
+      if (requestId === suggestRequestIdRef.current) setIsLoadingSuggestions(false)
+    }
+  }
+
+  async function fetchRecentSearches() {
+    setIsLoadingRecent(true)
+    try {
+      const params = new URLSearchParams({ limit: '8' })
+      const response = await fetch(`${API_BASE}/search/history?${params.toString()}`)
+      const payload = (await response.json()) as string[] | { message?: string }
+      if (!response.ok || !Array.isArray(payload)) {
+        setRecentSearches([])
+        return
+      }
+      setRecentSearches(payload)
+    } catch {
+      setRecentSearches([])
+    } finally {
+      setIsLoadingRecent(false)
+    }
+  }
+
+  function triggerSearchFromSelection(value: string) {
+    setQuery(value)
+    setShowSuggestionBox(false)
+    void doSearch(value)
+  }
+
+  function handleSearchInputFocus() {
+    if (hideSuggestionBoxTimerRef.current) {
+      clearTimeout(hideSuggestionBoxTimerRef.current)
+      hideSuggestionBoxTimerRef.current = null
+    }
+    setShowSuggestionBox(true)
+    if (query.trim().length === 0) {
+      void fetchRecentSearches()
+    }
+  }
+
+  function handleSearchInputBlur() {
+    hideSuggestionBoxTimerRef.current = setTimeout(() => {
+      setShowSuggestionBox(false)
+    }, 150)
+  }
+
+  async function trackOpenEvent(filePath: string, resultPosition: number) {
+    if (!activeSearchQuery.trim()) return
+    try {
+      const response = await fetch(`${API_BASE}/search/open`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: activeSearchQuery,
+          filePath,
+          resultPosition
+        })
+      })
+      if (!response.ok) {
+        setOpenEventMessage('Could not record open event.')
+        return
+      }
+      setOpenedResultPaths((prev) => {
+        const next = new Set(prev)
+        next.add(filePath)
+        return next
+      })
+      setOpenEventMessage('Open event recorded.')
+      setTimeout(() => {
+        setOpenedResultPaths((prev) => {
+          const next = new Set(prev)
+          next.delete(filePath)
+          return next
+        })
+      }, 2000)
+    } catch {
+      setOpenEventMessage('Could not record open event.')
+    }
   }
 
   return (
@@ -662,11 +804,75 @@ function App() {
         </details>
 
         <form className="search-row" onSubmit={runSearch}>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder='Try: "readme", "ext:java", "config ext:json"'
-          />
+          <div className="search-input-wrap">
+            <span className="search-input-icon" aria-hidden="true">
+              #
+            </span>
+            <input
+              className="search-query-input"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={handleSearchInputFocus}
+              onBlur={handleSearchInputBlur}
+              placeholder='Try: "readme", "ext:java", "config ext:json"'
+            />
+            {showSuggestionBox && (
+              <div className="suggestion-box" role="listbox" aria-label="Search suggestions and history">
+                {query.trim() ? (
+                  <>
+                    <p className="suggestion-heading">Suggestions</p>
+                    {isLoadingSuggestions ? (
+                      <p className="suggestion-empty">Loading suggestions...</p>
+                    ) : searchSuggestions.length > 0 ? (
+                      <ul className="suggestion-list">
+                        {searchSuggestions.map((suggestion) => (
+                          <li key={`s-${suggestion}`}>
+                            <button
+                              type="button"
+                              className="suggestion-item"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                triggerSearchFromSelection(suggestion)
+                              }}
+                            >
+                              {suggestion}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="suggestion-empty">No suggestions yet.</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="suggestion-heading">Recent searches</p>
+                    {isLoadingRecent ? (
+                      <p className="suggestion-empty">Loading recent searches...</p>
+                    ) : recentSearches.length > 0 ? (
+                      <div className="recent-chip-list">
+                        {recentSearches.map((recent) => (
+                          <button
+                            key={`r-${recent}`}
+                            type="button"
+                            className="recent-chip"
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              triggerSearchFromSelection(recent)
+                            }}
+                          >
+                            {recent}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="suggestion-empty">No recent searches yet.</p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
           <input
             className="limit"
             type="number"
@@ -678,9 +884,10 @@ function App() {
         </form>
 
         {searchMessage && <p className="message">{searchMessage}</p>}
+        {openEventMessage && <p className="message">{openEventMessage}</p>}
 
         <div className="results">
-          {searchResults.map((result) => (
+          {searchResults.map((result, index) => (
             <article key={result.path} className="result-card">
               <h3>
                 {highlightTerms.length > 0
@@ -714,6 +921,15 @@ function App() {
                   ? highlightText(result.preview, highlightTerms, `${result.path}-pv`)
                   : result.preview}
               </pre>
+              <div className="result-actions">
+                <button
+                  type="button"
+                  className="result-open-button"
+                  onClick={() => void trackOpenEvent(result.path, index + 1)}
+                >
+                  {openedResultPaths.has(result.path) ? 'Opened ✓' : 'Mark as opened'}
+                </button>
+              </div>
             </article>
           ))}
         </div>
