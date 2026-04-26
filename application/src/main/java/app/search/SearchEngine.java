@@ -6,6 +6,7 @@ import app.search.query.Query;
 import app.search.query.QueryParser;
 import app.search.ranking.RankingStrategy;
 import app.search.ranking.RankingStrategyResolver;
+import app.service.support.QueryNormalizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +41,8 @@ public class SearchEngine {
         try {
             Query query = parser.parse(input);
             RankingStrategy rankingStrategy = RankingStrategyResolver.getRankingStrategy(query.filters().get("sort"));
-            return repository.search(query, limit, rankingStrategy);
+            String normalizedQuery = QueryNormalizer.normalize(input);
+            return repository.search(query, limit, rankingStrategy, normalizedQuery);
         } catch (IllegalArgumentException e) {
             log.warn("Invalid query input: {}", e.getMessage());
             return List.of();

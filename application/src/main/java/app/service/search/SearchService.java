@@ -6,6 +6,7 @@ import app.model.SearchResult;
 import app.search.SearchEngine;
 import app.search.query.QueryParser;
 import app.service.support.DatabaseAccessor;
+import app.service.support.QueryNormalizer;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -56,7 +57,7 @@ public class SearchService {
     private void recordSearchActivity(String dbPath, String input, int resultCount, long startedAtNanos) throws SQLException, IOException {
         long durationMs = (System.nanoTime() - startedAtNanos) / 1_000_000L;
         String rawQuery = input == null ? "" : input;
-        String normalizedQuery = normalizeQuery(input);
+        String normalizedQuery = QueryNormalizer.normalize(input);
         String executedAt = LocalDateTime.now().toString();
         for (SearchObserver observer : searchObservers) {
             observer.onSearchExecuted(dbPath, rawQuery, normalizedQuery, resultCount, durationMs, executedAt);
@@ -68,7 +69,7 @@ public class SearchService {
      */
     public List<String> suggestQueries(String dbPath, String prefix, int limit) throws SQLException, IOException {
         try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            return db.suggestQueries(normalizeQuery(prefix), limit);
+            return db.suggestQueries(QueryNormalizer.normalize(prefix), limit);
         }
     }
 
@@ -81,13 +82,4 @@ public class SearchService {
         }
     }
 
-    /**
-     * Normalizes query text for case-insensitive prefix matching in history.
-     */
-    private String normalizeQuery(String input) {
-        if (input == null) {
-            return "";
-        }
-        return input.trim().toLowerCase();
-    }
 }

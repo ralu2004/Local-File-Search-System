@@ -29,14 +29,26 @@ public class QueryBuilder {
         this.rankingStrategy = rankingStrategy;
     }
 
+    public BuiltQuery build(Query query, int limit, String normalizedQuery) {
+        return buildInternal(query, limit, normalizedQuery == null ? "" : normalizedQuery.trim().toLowerCase());
+    }
+
     public BuiltQuery build(Query query, int limit) {
+        return buildInternal(query, limit, "");
+    }
+
+    private BuiltQuery buildInternal(Query query, int limit, String normalizedQuery) {
         StringBuilder sql = new StringBuilder();
         List<Object> params = new ArrayList<>();
         boolean usesFts = hasFtsTerm(query) || query.filters().containsKey("content");
+        boolean hasHistorySignal = !normalizedQuery.isBlank();
 
-        appendBaseSelect(sql, params, query);
+        appendBaseSelect(sql, params, query, hasHistorySignal);
+        if (hasHistorySignal) {
+            appendHistorySignalParams(params, normalizedQuery);
+        }
         appendFilters(sql, query.filters(), params);
-        appendOrdering(sql, usesFts);
+        appendOrdering(sql, usesFts, hasHistorySignal);
         appendLimit(sql, params, limit);
         return new BuiltQuery(sql.toString(), params);
     }
@@ -45,14 +57,14 @@ public class QueryBuilder {
         return query.value() != null && !query.value().isBlank();
     }
 
-    private void appendBaseSelect(StringBuilder sql, List<Object> params, Query query) {
+    private void appendBaseSelect(StringBuilder sql, List<Object> params, Query query, boolean hasHistorySignal) {
         String ftsMatch = buildFtsMatchString(query);
         if (ftsMatch != null) {
-            appendFtsSelect(sql);
+            appendFtsSelect(sql, hasHistorySignal);
             params.add(ftsMatch);
             return;
         }
-        appendPlainSelect(sql);
+        appendPlainSelect(sql, hasHistorySignal);
     }
 
     private String buildFtsMatchString(Query query) {
@@ -70,7 +82,7 @@ public class QueryBuilder {
         return null;
     }
 
-    private void appendFtsSelect(StringBuilder sql) {
+    private void appendFtsSelect(StringBuilder sql, boolean hasHistorySignal) {
         sql.append("""
                 WITH matched AS (
                     SELECT path,
@@ -88,22 +100,70 @@ public class QueryBuilder {
                 JOIN files f ON f.path = m.path
                 LEFT JOIN path_features pf ON pf.path = f.path
                 """);
+        if (hasHistorySignal) {
+            appendHistoryBoostJoins(sql);
+        }
     }
 
-    private void appendPlainSelect(StringBuilder sql) {
+    private void appendPlainSelect(StringBuilder sql, boolean hasHistorySignal) {
         sql.append("""
                 SELECT fts.path, fts.filename, fts.preview, f.extension, f.modified_at, f.size_bytes
                 FROM files f
                 JOIN files_fts fts ON fts.path = f.path
                 LEFT JOIN path_features pf ON pf.path = f.path
                 """);
+        if (hasHistorySignal) {
+            appendHistoryBoostJoins(sql);
+        }
     }
 
-    private void appendOrdering(StringBuilder sql, boolean usesFts) {
+    private void appendHistoryBoostJoins(StringBuilder sql) {
+        sql.append("""
+                LEFT JOIN (
+                    SELECT file_path,
+                           COUNT(*) AS open_count,
+                           MAX(opened_at) AS last_opened_at
+                    FROM result_open_history
+                    WHERE normalized_query = ?
+                    GROUP BY file_path
+                ) roh ON roh.file_path = f.path
+                LEFT JOIN (
+                    SELECT normalized_query,
+                           COUNT(*) AS query_count,
+                           MAX(executed_at) AS last_query_at
+                    FROM search_history
+                    WHERE normalized_query = ?
+                    GROUP BY normalized_query
+                ) sh ON sh.normalized_query = ?
+                """);
+    }
+
+    private void appendHistorySignalParams(List<Object> params, String normalizedQuery) {
+        params.add(normalizedQuery);
+        params.add(normalizedQuery);
+        params.add(normalizedQuery);
+    }
+
+    private void appendOrdering(StringBuilder sql, boolean usesFts, boolean hasHistorySignal) {
         if (usesFts) {
-            sql.append(" ORDER BY m.rank, ").append(rankingStrategy.orderByClause());
+            sql.append(" ORDER BY m.rank");
+            if (hasHistorySignal) {
+                sql.append(", COALESCE(roh.open_count, 0) DESC")
+                        .append(", COALESCE(roh.last_opened_at, '') DESC")
+                        .append(", COALESCE(sh.query_count, 0) DESC")
+                        .append(", COALESCE(sh.last_query_at, '') DESC");
+            }
+            sql.append(", ").append(rankingStrategy.orderByClause());
         } else {
-            sql.append(" ORDER BY ").append(rankingStrategy.orderByClause());
+            sql.append(" ORDER BY ");
+            if (hasHistorySignal) {
+                sql.append("COALESCE(roh.open_count, 0) DESC")
+                        .append(", COALESCE(roh.last_opened_at, '') DESC")
+                        .append(", COALESCE(sh.query_count, 0) DESC")
+                        .append(", COALESCE(sh.last_query_at, '') DESC")
+                        .append(", ");
+            }
+            sql.append(rankingStrategy.orderByClause());
         }
     }
 

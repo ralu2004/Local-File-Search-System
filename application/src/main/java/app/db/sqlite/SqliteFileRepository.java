@@ -189,9 +189,9 @@ public final class SqliteFileRepository implements FileRepository {
     }
 
     @Override
-    public List<SearchResult> search(Query query, int limit, RankingStrategy strategy) throws SQLException {
+    public List<SearchResult> search(Query query, int limit, RankingStrategy strategy, String normalizedQuery) throws SQLException {
         QueryBuilder queryBuilder = new QueryBuilder(strategy);
-        BuiltQuery builtQuery = queryBuilder.build(query, limit);
+        BuiltQuery builtQuery = queryBuilder.build(query, limit, normalizedQuery);
         return queryResults(builtQuery.sql(), builtQuery.params());
     }
 
