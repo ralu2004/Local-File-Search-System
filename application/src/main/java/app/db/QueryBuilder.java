@@ -11,7 +11,14 @@ import java.util.Map;
 /**
  * Builds search SQL queries for SQLite FTS5 ({@code files_fts}), as well as
  * optional filters on {@code files} (extension, modified time, size, path, content).
- * Normalizes user input into a valid FTS5 {@code MATCH} query string.
+ * <p>
+ * Supports two ranking layers:
+ * <ul>
+ *   <li>Base relevance/order: FTS rank (when applicable) + configured {@link RankingStrategy}</li>
+ *   <li>History boosts (when normalized query is provided): open frequency/recency and query frequency/recency</li>
+ * </ul>
+ * History boosts are sourced from {@code result_open_history} and {@code search_history}
+ * to promote results users open more often for the same normalized query.
  */
 public class QueryBuilder {
     

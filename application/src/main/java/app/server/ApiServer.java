@@ -163,6 +163,29 @@ public class ApiServer implements AutoCloseable {
                 writeJson(ctx.status(500), new ErrorResponse("SEARCH_HISTORY_FAILED", "Search history failed."));
             }
         });
+
+        app.post("/api/search/open", ctx -> {
+            SearchOpenRequest request;
+            try {
+                request = ctx.bodyAsClass(SearchOpenRequest.class);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid JSON body.");
+            }
+            validateSearchOpenRequest(request);
+            try {
+                searchService.recordResultOpen(
+                        request.dbPath(),
+                        request.query(),
+                        request.filePath(),
+                        request.resultPosition()
+                );
+                writeJson(ctx.status(202), new MessageResponse("Search open event recorded."));
+            } catch (SQLException | IOException e) {
+                log.error("Search open tracking failed", e);
+                writeJson(ctx.status(500), new ErrorResponse("SEARCH_OPEN_TRACK_FAILED", "Search open tracking failed."));
+            }
+        });
+
         app.start(port);
         log.info("API server started on port {}", port);
     }
@@ -173,6 +196,15 @@ public class ApiServer implements AutoCloseable {
         }
         if (request.root() == null || request.root().isBlank()) {
             throw new IllegalArgumentException("Field 'root' is required and must be a valid directory path.");
+        }
+    }
+
+    private void validateSearchOpenRequest(SearchOpenRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Request body is required.");
+        }
+        if (request.filePath() == null || request.filePath().isBlank()) {
+            throw new IllegalArgumentException("Field 'filePath' is required.");
         }
     }
 
@@ -219,6 +251,16 @@ public class ApiServer implements AutoCloseable {
      * Generic success response payload.
      */
     public record MessageResponse(String message) {}
+
+    /**
+     * Request payload for recording that a result was opened by the user.
+     */
+    public record SearchOpenRequest(
+            String dbPath,
+            String query,
+            String filePath,
+            Integer resultPosition
+    ) {}
 
     /**
      * Generic error response payload.

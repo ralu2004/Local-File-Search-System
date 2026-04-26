@@ -45,6 +45,39 @@ public class SearchService {
         }
     }
 
+    /**
+     * Returns prefix-based query suggestions from normalized search history.
+     */
+    public List<String> suggestQueries(String dbPath, String prefix, int limit) throws SQLException, IOException {
+        try (Database db = databaseAccessor.openDatabase(dbPath)) {
+            return db.suggestQueries(QueryNormalizer.normalize(prefix), limit);
+        }
+    }
+
+    /**
+     * Returns recent unique queries ordered by latest usage.
+     */
+    public List<String> recentQueries(String dbPath, int limit) throws SQLException, IOException {
+        try (Database db = databaseAccessor.openDatabase(dbPath)) {
+            return db.recentQueries(limit);
+        }
+    }
+
+    /**
+     * Records that a user opened a file from a search results list.
+     * <p>
+     * Persists both raw and normalized query text together with file path,
+     * optional result position, and open timestamp for history-based ranking.
+     */
+    public void recordResultOpen(String dbPath, String query, String filePath, Integer resultPosition) throws SQLException, IOException {
+        String rawQuery = query == null ? "" : query;
+        String normalizedQuery = QueryNormalizer.normalize(rawQuery);
+        String openedAt = LocalDateTime.now().toString();
+        try (Database db = databaseAccessor.openDatabase(dbPath)) {
+            db.recordResultOpen(rawQuery, normalizedQuery, filePath, resultPosition, openedAt);
+        }
+    }
+
     private List<SearchResult> executeSearch(Database db, String input, int limit) throws SQLException {
         SearchEngine engine = new SearchEngine(db, new QueryParser(), limit);
         return engine.search(input);
@@ -61,24 +94,6 @@ public class SearchService {
         String executedAt = LocalDateTime.now().toString();
         for (SearchObserver observer : searchObservers) {
             observer.onSearchExecuted(dbPath, rawQuery, normalizedQuery, resultCount, durationMs, executedAt);
-        }
-    }
-
-    /**
-     * Returns prefix-based query suggestions from normalized search history.
-     */
-    public List<String> suggestQueries(String dbPath, String prefix, int limit) throws SQLException, IOException {
-        try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            return db.suggestQueries(QueryNormalizer.normalize(prefix), limit);
-        }
-    }
-
-    /**
-     * Returns recent unique queries ordered by latest usage.
-     */
-    public List<String> recentQueries(String dbPath, int limit) throws SQLException, IOException {
-        try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            return db.recentQueries(limit);
         }
     }
 
