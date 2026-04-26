@@ -39,6 +39,7 @@ public class SqliteSearchActivityRepository implements SearchActivityRepository 
     @Override
     public void recordResultOpen(String queryText, String normalizedQuery, String filePath, Integer resultPosition, String openedAt) throws SQLException {
         try (Connection conn = connections.open()) {
+            String storedPath = resolveStoredFilePath(conn, filePath);
             try (PreparedStatement stmt = conn.prepareStatement(
                     """
                     INSERT INTO result_open_history (query_text, normalized_query, file_path, result_position, opened_at)
@@ -46,7 +47,7 @@ public class SqliteSearchActivityRepository implements SearchActivityRepository 
                     """)) {
                 stmt.setString(1, queryText);
                 stmt.setString(2, normalizedQuery);
-                stmt.setString(3, filePath);
+                stmt.setString(3, storedPath);
                 if (resultPosition == null) {
                     stmt.setNull(4, java.sql.Types.INTEGER);
                 } else {
@@ -56,6 +57,46 @@ public class SqliteSearchActivityRepository implements SearchActivityRepository 
                 stmt.executeUpdate();
             }
         }
+    }
+
+    /**
+     * Resolves a client-reported path to the canonical value stored in {@code files.path},
+     * tolerating URI-style prefixes and slash-direction differences.
+     */
+    private String resolveStoredFilePath(Connection conn, String filePath) throws SQLException {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException("Field 'filePath' is required.");
+        }
+        String candidate = normalizeClientPath(filePath);
+        String sql = """
+                SELECT path
+                FROM files
+                WHERE path = ?
+                   OR REPLACE(path, char(92), '/') = REPLACE(?, char(92), '/')
+                LIMIT 1
+                """;
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, candidate);
+            stmt.setString(2, candidate);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("path");
+                }
+            }
+        }
+        throw new IllegalArgumentException("Field 'filePath' does not reference an indexed file.");
+    }
+
+    private String normalizeClientPath(String rawPath) {
+        String trimmed = rawPath.trim();
+        if (trimmed.startsWith("file:/")) {
+            trimmed = trimmed.replaceFirst("^file:/+", "");
+            if (trimmed.matches("^[A-Za-z]:.*")) {
+                return trimmed;
+            }
+            return "/" + trimmed;
+        }
+        return trimmed;
     }
 
     @Override
