@@ -52,6 +52,8 @@ type SearchResult = {
   sizeBytes?: number | null
 }
 
+type SortMode = 'default' | 'balanced' | 'date' | 'alpha'
+
 const API_BASE = 'http://localhost:7070/api'
 
 function getFileTypeLabel(extension: string): string {
@@ -248,6 +250,17 @@ function formatElapsed(value: unknown): string {
   return String(value)
 }
 
+function buildRequestQuery(rawQuery: string, sortMode: SortMode): string {
+  const base = rawQuery.replace(/\bsort:[^\s]+/gi, '').replace(/\s+/g, ' ').trim()
+  if (!base) return ''
+  if (sortMode === 'default') return base
+  return `${base} sort:${sortMode}`
+}
+
+function stripSortQualifier(rawQuery: string): string {
+  return rawQuery.replace(/\bsort:[^\s]+/gi, '').replace(/\s+/g, ' ').trim()
+}
+
 function App() {
   const [root, setRoot] = useState('D:\\UTCN\\An3\\Sem2\\SD\\Local-File-Search-System')
   const [ignoreRules, setIgnoreRules] = useState('*.log')
@@ -263,6 +276,7 @@ function App() {
   const [indexMessage, setIndexMessage] = useState('')
 
   const [query, setQuery] = useState('')
+  const [sortMode, setSortMode] = useState<SortMode>('default')
   const [limit, setLimit] = useState(20)
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searchMessage, setSearchMessage] = useState('')
@@ -354,11 +368,12 @@ function App() {
   const doSearch = useCallback(
     async (nextQuery: string) => {
     const q = nextQuery.trim()
+    const requestQuery = buildRequestQuery(q, sortMode)
 
     searchAbortRef.current?.abort()
     searchAbortRef.current = null
 
-    if (!q) {
+    if (!requestQuery) {
       searchRequestIdRef.current += 1
       setSearchResults([])
       setActiveSearchQuery('')
@@ -375,7 +390,7 @@ function App() {
     setSearchMessage('')
 
     try {
-      const params = new URLSearchParams({ q, limit: String(limit) })
+      const params = new URLSearchParams({ q: requestQuery, limit: String(limit) })
       const response = await fetch(`${API_BASE}/search?${params.toString()}`, { signal: controller.signal })
       const payload = await response.json().catch(() => ({} as unknown))
 
@@ -400,7 +415,7 @@ function App() {
       if (requestId === searchRequestIdRef.current) setIsSearching(false)
     }
     },
-    [limit]
+    [limit, sortMode]
   )
 
   useEffect(() => {
@@ -513,7 +528,11 @@ function App() {
         setSearchSuggestions([])
         return
       }
-      setSearchSuggestions(payload)
+      setSearchSuggestions(
+        payload
+          .map((item) => stripSortQualifier(item))
+          .filter((item) => item.length > 0)
+      )
     } catch {
       if (requestId !== suggestRequestIdRef.current) return
       setSearchSuggestions([])
@@ -532,7 +551,11 @@ function App() {
         setRecentSearches([])
         return
       }
-      setRecentSearches(payload)
+      setRecentSearches(
+        payload
+          .map((item) => stripSortQualifier(item))
+          .filter((item) => item.length > 0)
+      )
     } catch {
       setRecentSearches([])
     } finally {
@@ -541,9 +564,10 @@ function App() {
   }
 
   function triggerSearchFromSelection(value: string) {
-    setQuery(value)
+    const cleaned = stripSortQualifier(value)
+    setQuery(cleaned)
     setShowSuggestionBox(false)
-    void doSearch(value)
+    void doSearch(cleaned)
   }
 
   function handleSearchInputFocus() {
@@ -880,6 +904,14 @@ function App() {
             value={limit}
             onChange={(e) => setLimit(Number(e.target.value))}
           />
+          <div className="sort-selector">
+            <select value={sortMode} onChange={(e) => setSortMode(e.target.value as SortMode)}>
+              <option value="default">Default (static)</option>
+              <option value="balanced">Balanced</option>
+              <option value="date">Date (newest first)</option>
+              <option value="alpha">Alphabetical</option>
+            </select>
+          </div>
           <button type="submit">Search</button>
         </form>
 

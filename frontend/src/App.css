@@ -199,6 +199,7 @@ header h1 {
 }
 
 input,
+select,
 button {
   border-radius: 12px;
   border: 1px solid rgba(125, 211, 252, 0.5);
@@ -210,6 +211,11 @@ button {
 }
 
 input:focus {
+  border-color: rgba(56, 189, 248, 0.72);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.22);
+}
+
+select:focus {
   border-color: rgba(56, 189, 248, 0.72);
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.22);
 }
@@ -357,7 +363,7 @@ button:disabled {
 
 .search-row {
   display: grid;
-  grid-template-columns: 1fr 110px 120px;
+  grid-template-columns: 1fr 110px 190px 120px;
   gap: 10px;
   align-items: start;
 }
@@ -463,6 +469,19 @@ button:disabled {
 .recent-chip:hover {
   border-color: rgba(56, 189, 248, 0.65);
   background: rgba(236, 248, 255, 0.95);
+}
+
+.sort-selector {
+  display: flex;
+  align-items: stretch;
+}
+
+.sort-selector select {
+  width: 100%;
+  height: 100%;
+  min-height: 42px;
+  font-size: 0.84rem;
+  font-weight: 500;
 }
 
 .results {
