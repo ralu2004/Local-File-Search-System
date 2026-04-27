@@ -135,7 +135,9 @@ public class QueryBuilder {
                 LEFT JOIN (
                     SELECT file_path,
                            COUNT(*) AS open_count,
-                           MAX(opened_at) AS last_opened_at
+                           MAX(opened_at) AS last_opened_at,
+                           SUM(COALESCE(result_position, 1)) AS position_sum,
+                           SUM(CASE WHEN result_position IS NOT NULL THEN 1 ELSE 0 END) AS position_count
                     FROM result_open_history
                     WHERE normalized_query = ?
                     GROUP BY file_path

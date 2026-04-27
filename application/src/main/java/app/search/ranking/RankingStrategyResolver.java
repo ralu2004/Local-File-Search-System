@@ -8,6 +8,7 @@ public class RankingStrategyResolver {
             case "date" -> new DateRankingStrategy();
             case "alpha" -> new AlphabeticalRankingStrategy();
             case "balanced" -> new BalancedRankingStrategy();
+            case "behavior" -> new BehaviorRankingStrategy();
             default -> new StaticRankingStrategy();
         };
     }

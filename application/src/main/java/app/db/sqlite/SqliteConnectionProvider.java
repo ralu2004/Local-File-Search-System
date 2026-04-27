@@ -5,6 +5,8 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import org.sqlite.Function;
+
 /**
  * Opens JDBC connections to SQLite and applies common PRAGMA settings
  * (busy timeout, WAL, synchronous).
@@ -30,7 +32,18 @@ public final class SqliteConnectionProvider {
             stmt.execute("PRAGMA foreign_keys = ON;");
         } catch (SQLException ignored) {
         }
+
+        registerFunctions(conn);
+
         return conn;
+    }
+
+    private void registerFunctions(Connection conn) throws SQLException {
+        Function.create(conn, SqliteBehaviorScoreFunction.NAME, new SqliteBehaviorScoreFunction(), SqliteBehaviorScoreFunction.ARG_COUNT);
+        // test registration
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("SELECT " + SqliteBehaviorScoreFunction.NAME + "(0, NULL, 0, 0, 0)");
+        }
     }
 }
 

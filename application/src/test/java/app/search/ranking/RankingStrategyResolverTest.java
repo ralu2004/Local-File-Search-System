@@ -30,5 +30,11 @@ class RankingStrategyResolverTest {
         assertInstanceOf(DateRankingStrategy.class, RankingStrategyResolver.getRankingStrategy("DaTe"));
         assertInstanceOf(AlphabeticalRankingStrategy.class, RankingStrategyResolver.getRankingStrategy("ALPHA"));
         assertInstanceOf(BalancedRankingStrategy.class, RankingStrategyResolver.getRankingStrategy("BaLaNcEd"));
+        assertInstanceOf(BehaviorRankingStrategy.class, RankingStrategyResolver.getRankingStrategy("BeHaViOr"));
+    }
+
+    @Test
+    void behaviorSortReturnsBehaviorStrategy() {
+        assertInstanceOf(BehaviorRankingStrategy.class, RankingStrategyResolver.getRankingStrategy("behavior"));
     }
 }
