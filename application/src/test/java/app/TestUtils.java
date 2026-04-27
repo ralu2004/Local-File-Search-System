@@ -3,6 +3,7 @@ package app;
 import app.db.DatabaseProvider;
 import app.db.SqliteDatabaseProvider;
 import app.indexer.IndexReport;
+import app.model.RankedSearchResult;
 import app.model.SearchResult;
 import app.service.index.IndexService;
 import app.service.search.SearchService;
@@ -79,7 +80,8 @@ public final class TestUtils {
     public static List<SearchResult> search(String dbPath, String query, int limit) throws SQLException, IOException {
         DatabaseProvider provider = new SqliteDatabaseProvider();
         SearchService searchService = new SearchService(provider);
-        return searchService.search(dbPath, query, limit);
+        List<RankedSearchResult> rankedResults = searchService.search(dbPath, query, limit);
+        return rankedResults.stream().map(RankedSearchResult::result).toList();
     }
 
     public static void assertResultContainsPath(List<SearchResult> results, Path expectedPath) {

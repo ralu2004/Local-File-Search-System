@@ -1,5 +1,6 @@
 package app.search;
 
+import app.model.RankedSearchResult;
 import app.model.SearchResult;
 import app.repository.FileSearchRepository;
 import app.search.query.Query;
@@ -81,17 +82,20 @@ class SearchEngineTest {
         private String capturedNormalizedQuery;
 
         @Override
-        public List<SearchResult> search(Query query, int limit, RankingStrategy strategy, String normalizedQuery) {
+        public List<RankedSearchResult> search(Query query, int limit, RankingStrategy strategy, String normalizedQuery) {
             this.capturedLimit = limit;
             this.capturedStrategy = strategy;
             this.capturedNormalizedQuery = normalizedQuery;
-            return List.of(new SearchResult(
-                    Path.of("D:/dummy.txt"),
-                    "dummy.txt",
-                    "txt",
-                    "preview",
-                    LocalDateTime.parse("2026-01-01T00:00:00"),
-                    12L
+            return List.of(new RankedSearchResult(
+                    new SearchResult(
+                            Path.of("D:/dummy.txt"),
+                            "dummy.txt",
+                            "txt",
+                            "preview",
+                            LocalDateTime.parse("2026-01-01T00:00:00"),
+                            12L
+                    ),
+                    List.of()
             ));
         }
     }

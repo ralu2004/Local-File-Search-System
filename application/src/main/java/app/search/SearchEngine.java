@@ -1,6 +1,6 @@
 package app.search;
 
-import app.model.SearchResult;
+import app.model.RankedSearchResult;
 import app.repository.FileSearchRepository;
 import app.search.query.Query;
 import app.search.query.QueryParser;
@@ -37,7 +37,7 @@ public class SearchEngine {
         this.limit = limit;
     }
 
-    public List<SearchResult> search(String input) throws SQLException {
+    public List<RankedSearchResult> search(String input) throws SQLException {
         try {
             Query query = parser.parse(input);
             RankingStrategy rankingStrategy = RankingStrategyResolver.getRankingStrategy(query.filters().get("sort"));

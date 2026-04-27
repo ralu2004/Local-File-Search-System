@@ -75,7 +75,7 @@ public class Database implements FileRepository, IndexRunRepository, SearchActiv
     }
 
     @Override
-    public List<SearchResult> search(Query query, int limit, RankingStrategy strategy, String normalizedQuery) throws SQLException {
+    public List<RankedSearchResult> search(Query query, int limit, RankingStrategy strategy, String normalizedQuery) throws SQLException {
         return fileRepository.search(query, limit, strategy, normalizedQuery);
     }
 

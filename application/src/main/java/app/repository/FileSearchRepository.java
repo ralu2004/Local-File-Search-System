@@ -1,6 +1,6 @@
 package app.repository;
 
-import app.model.SearchResult;
+import app.model.RankedSearchResult;
 import app.search.query.Query;
 import app.search.ranking.RankingStrategy;
 
@@ -11,5 +11,5 @@ import java.util.List;
  * Read-only search contract over indexed file data.
  */
 public interface FileSearchRepository {
-    List<SearchResult> search(Query query, int limit, RankingStrategy strategy, String normalizedQuery) throws SQLException;
+    List<RankedSearchResult> search(Query query, int limit, RankingStrategy strategy, String normalizedQuery) throws SQLException;
 }

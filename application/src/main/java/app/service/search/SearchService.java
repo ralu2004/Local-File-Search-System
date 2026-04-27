@@ -2,7 +2,7 @@ package app.service.search;
 
 import app.db.Database;
 import app.db.DatabaseProvider;
-import app.model.SearchResult;
+import app.model.RankedSearchResult;
 import app.search.SearchEngine;
 import app.search.query.QueryParser;
 import app.service.support.DatabaseAccessor;
@@ -36,10 +36,10 @@ public class SearchService {
      * Executes a search and then records query activity for history-driven
      * suggestions and ranking.
      */
-    public List<SearchResult> search(String dbPath, String input, int limit) throws SQLException, IOException {
+    public List<RankedSearchResult> search(String dbPath, String input, int limit) throws SQLException, IOException {
         try (Database db = databaseAccessor.openDatabase(dbPath)) {
             long startedAt = System.nanoTime();
-            List<SearchResult> results = executeSearch(db, input, limit);
+            List<RankedSearchResult> results = executeSearch(db, input, limit);
             recordSearchActivity(dbPath, input, results.size(), startedAt);
             return results;
         }
@@ -78,7 +78,7 @@ public class SearchService {
         }
     }
 
-    private List<SearchResult> executeSearch(Database db, String input, int limit) throws SQLException {
+    private List<RankedSearchResult> executeSearch(Database db, String input, int limit) throws SQLException {
         SearchEngine engine = new SearchEngine(db, new QueryParser(), limit);
         return engine.search(input);
     }

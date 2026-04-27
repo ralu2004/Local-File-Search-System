@@ -4,7 +4,7 @@ import app.db.BuiltQuery;
 import app.db.QueryBuilder;
 import app.model.ExtractedRecord;
 import app.model.FileRecord;
-import app.model.SearchResult;
+import app.model.RankedSearchResult;
 import app.repository.FileRepository;
 import app.search.query.Query;
 import app.search.ranking.PathFeatures;
@@ -189,10 +189,10 @@ public final class SqliteFileRepository implements FileRepository {
     }
 
     @Override
-    public List<SearchResult> search(Query query, int limit, RankingStrategy strategy, String normalizedQuery) throws SQLException {
+    public List<RankedSearchResult> search(Query query, int limit, RankingStrategy strategy, String normalizedQuery) throws SQLException {
         QueryBuilder queryBuilder = new QueryBuilder(strategy);
         BuiltQuery builtQuery = queryBuilder.build(query, limit, normalizedQuery);
-        return queryResults(builtQuery.sql(), builtQuery.params());
+        return queryResults(builtQuery.sql(), builtQuery.params(), strategy);
     }
 
     @Override
@@ -310,8 +310,8 @@ public final class SqliteFileRepository implements FileRepository {
         return files;
     }
 
-    private List<SearchResult> queryResults(String sql, List<Object> params) throws SQLException {
-        List<SearchResult> results = new ArrayList<>();
+    private List<RankedSearchResult> queryResults(String sql, List<Object> params, RankingStrategy strategy) throws SQLException {
+        List<RankedSearchResult> results = new ArrayList<>();
         try (Connection conn = connections.open();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < params.size(); i++) {
@@ -319,7 +319,7 @@ public final class SqliteFileRepository implements FileRepository {
             }
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    results.add(SqliteRowMappers.searchResult(rs));
+                    results.add(SqliteRowMappers.rankedSearchResult(rs, strategy));
                 }
             }
         }

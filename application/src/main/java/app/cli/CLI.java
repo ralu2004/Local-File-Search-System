@@ -3,6 +3,7 @@ package app.cli;
 import app.db.DatabaseProvider;
 import app.db.SqliteDatabaseProvider;
 import app.indexer.IndexReport;
+import app.model.RankedSearchResult;
 import app.model.SearchResult;
 import app.service.index.IndexService;
 import app.service.search.SearchService;
@@ -147,7 +148,7 @@ public class CLI implements Runnable {
         @Override
         public void run() {
             try {
-                List<SearchResult> results = parent.searchService.search(parent.dbPath, query, limit);
+                List<RankedSearchResult> results = parent.searchService.search(parent.dbPath, query, limit);
 
                 if (results.isEmpty()) {
                     System.out.println("No results found for: " + query);
@@ -155,7 +156,8 @@ public class CLI implements Runnable {
                 }
 
                 System.out.println("\nFound " + results.size() + " result(s) for: \"" + query + "\"");
-                for (SearchResult result : results) {
+                for (RankedSearchResult rankedResult : results) {
+                    SearchResult result = rankedResult.result();
                     System.out.println("─────────────────────────────────");
                     String sizeStr = result.sizeBytes() != null
                             ? formatBytes(result.sizeBytes())
@@ -165,6 +167,10 @@ public class CLI implements Runnable {
                     System.out.println(" Preview:");
                     for (String line : result.preview().split(System.lineSeparator())) {
                         System.out.println("   " + line);
+                    }
+                    if (!rankedResult.insights().isEmpty()) {
+                        System.out.println(" Insights:");
+                        rankedResult.insights().forEach(insight -> System.out.println("   - " + insight));
                     }
                 }
                 System.out.println("─────────────────────────────────");
