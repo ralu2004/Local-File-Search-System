@@ -29,4 +29,9 @@ public class BehaviorRankingStrategy implements RankingStrategy {
                 COALESCE(sh.query_count, 0)\
                 ) DESC""".formatted(SqliteBehaviorScoreFunction.NAME);
     }
+
+    @Override
+    public boolean producesInsights() {
+        return true;
+    }
 }

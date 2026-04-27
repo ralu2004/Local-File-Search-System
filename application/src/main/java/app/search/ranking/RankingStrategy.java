@@ -19,4 +19,14 @@ public interface RankingStrategy {
      * @return a non-null SQL order expression
      */
     String orderByClause();
+
+    /**
+     * Whether this ranking strategy should emit user-facing ranking insights.
+     * <p>
+     * Defaults to {@code false} so non-behavior strategies keep the current payload
+     * shape unless they explicitly opt in.
+     */
+    default boolean producesInsights() {
+        return false;
+    }
 }
