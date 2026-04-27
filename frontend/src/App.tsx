@@ -52,7 +52,7 @@ type SearchResult = {
   sizeBytes?: number | null
 }
 
-type SortMode = 'default' | 'balanced' | 'date' | 'alpha'
+type SortMode = 'default' | 'balanced' | 'date' | 'alpha' | 'behavior'
 
 const API_BASE = 'http://localhost:7070/api'
 
@@ -910,6 +910,7 @@ function App() {
               <option value="balanced">Balanced</option>
               <option value="date">Date (newest first)</option>
               <option value="alpha">Alphabetical</option>
+              <option value="behavior">Personalized</option>
             </select>
           </div>
           <button type="submit">Search</button>
