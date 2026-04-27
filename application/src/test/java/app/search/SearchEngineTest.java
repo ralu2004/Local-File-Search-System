@@ -30,7 +30,7 @@ class SearchEngineTest {
         assertNotNull(repository.capturedStrategy, "Expected ranking strategy to be passed to repository");
         assertInstanceOf(DateRankingStrategy.class, repository.capturedStrategy);
         assertEquals(25, repository.capturedLimit);
-        assertEquals("notes sort:date", repository.capturedNormalizedQuery);
+        assertEquals("notes", repository.capturedNormalizedQuery);
     }
 
     @Test

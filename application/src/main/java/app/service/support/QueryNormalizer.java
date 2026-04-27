@@ -5,6 +5,8 @@ package app.service.support;
  */
 public final class QueryNormalizer {
 
+    private static final String SORT_QUALIFIER_REGEX = "\\bsort:[^\\s]+";
+
     private QueryNormalizer() {
     }
 
@@ -13,5 +15,16 @@ public final class QueryNormalizer {
             return "";
         }
         return input.trim().toLowerCase();
+    }
+
+    /**
+     * Normalizes a query for behavior/history keys, removing UI sort qualifiers.
+     */
+    public static String normalizeForHistory(String input) {
+        if (input == null) {
+            return "";
+        }
+        String withoutSort = input.replaceAll(SORT_QUALIFIER_REGEX, "");
+        return normalize(withoutSort.replaceAll("\\s+", " "));
     }
 }

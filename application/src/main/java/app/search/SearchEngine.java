@@ -41,7 +41,7 @@ public class SearchEngine {
         try {
             Query query = parser.parse(input);
             RankingStrategy rankingStrategy = RankingStrategyResolver.getRankingStrategy(query.filters().get("sort"));
-            String normalizedQuery = QueryNormalizer.normalize(input);
+            String normalizedQuery = QueryNormalizer.normalizeForHistory(input);
             return repository.search(query, limit, rankingStrategy, normalizedQuery);
         } catch (IllegalArgumentException e) {
             log.warn("Invalid query input: {}", e.getMessage());

@@ -50,7 +50,7 @@ public class SearchService {
      */
     public List<String> suggestQueries(String dbPath, String prefix, int limit) throws SQLException, IOException {
         try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            return db.suggestQueries(QueryNormalizer.normalize(prefix), limit);
+            return db.suggestQueries(QueryNormalizer.normalizeForHistory(prefix), limit);
         }
     }
 
@@ -71,7 +71,7 @@ public class SearchService {
      */
     public void recordResultOpen(String dbPath, String query, String filePath, Integer resultPosition) throws SQLException, IOException {
         String rawQuery = query == null ? "" : query;
-        String normalizedQuery = QueryNormalizer.normalize(rawQuery);
+        String normalizedQuery = QueryNormalizer.normalizeForHistory(rawQuery);
         String openedAt = LocalDateTime.now().toString();
         try (Database db = databaseAccessor.openDatabase(dbPath)) {
             db.recordResultOpen(rawQuery, normalizedQuery, filePath, resultPosition, openedAt);
@@ -90,7 +90,7 @@ public class SearchService {
     private void recordSearchActivity(String dbPath, String input, int resultCount, long startedAtNanos) throws SQLException, IOException {
         long durationMs = (System.nanoTime() - startedAtNanos) / 1_000_000L;
         String rawQuery = input == null ? "" : input;
-        String normalizedQuery = QueryNormalizer.normalize(input);
+        String normalizedQuery = QueryNormalizer.normalizeForHistory(input);
         String executedAt = LocalDateTime.now().toString();
         for (SearchObserver observer : searchObservers) {
             observer.onSearchExecuted(dbPath, rawQuery, normalizedQuery, resultCount, durationMs, executedAt);
