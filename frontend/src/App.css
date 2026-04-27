@@ -580,6 +580,21 @@ pre {
   font-weight: 500;
 }
 
+.result-insights {
+  margin: 10px 0 0;
+  padding: 8px 10px 8px 24px;
+  border: 1px solid rgba(147, 210, 255, 0.45);
+  border-radius: 10px;
+  background: rgba(236, 248, 255, 0.72);
+  color: #245980;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.result-insights li + li {
+  margin-top: 4px;
+}
+
 @media (max-width: 800px) {
   .form-grid {
     grid-template-columns: 1fr;

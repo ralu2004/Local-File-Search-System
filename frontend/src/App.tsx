@@ -48,8 +48,13 @@ type SearchResult = {
   filename: string
   extension: string
   preview: string
-  modifiedAt: string
+  modifiedAt: unknown
   sizeBytes?: number | null
+}
+
+type RankedSearchResult = {
+  result: SearchResult
+  insights?: string[]
 }
 
 type SortMode = 'default' | 'balanced' | 'date' | 'alpha' | 'behavior'
@@ -261,6 +266,41 @@ function stripSortQualifier(rawQuery: string): string {
   return rawQuery.replace(/\bsort:[^\s]+/gi, '').replace(/\s+/g, ' ').trim()
 }
 
+function isSearchResult(value: unknown): value is SearchResult {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  return (
+    typeof candidate.path === 'string' &&
+    typeof candidate.filename === 'string' &&
+    typeof candidate.extension === 'string' &&
+    typeof candidate.preview === 'string'
+  )
+}
+
+function normalizeRankedResults(payload: unknown): RankedSearchResult[] {
+  if (!Array.isArray(payload)) return []
+  const normalized: RankedSearchResult[] = []
+
+  for (const item of payload) {
+    if (!item || typeof item !== 'object') continue
+    const candidate = item as Record<string, unknown>
+
+    if (isSearchResult(item)) {
+      normalized.push({ result: item, insights: [] })
+      continue
+    }
+
+    if (isSearchResult(candidate.result)) {
+      const insights = Array.isArray(candidate.insights)
+        ? candidate.insights.filter((entry): entry is string => typeof entry === 'string')
+        : []
+      normalized.push({ result: candidate.result, insights })
+    }
+  }
+
+  return normalized
+}
+
 function App() {
   const [root, setRoot] = useState('D:\\UTCN\\An3\\Sem2\\SD\\Local-File-Search-System')
   const [ignoreRules, setIgnoreRules] = useState('*.log')
@@ -278,7 +318,7 @@ function App() {
   const [query, setQuery] = useState('')
   const [sortMode, setSortMode] = useState<SortMode>('default')
   const [limit, setLimit] = useState(20)
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [searchResults, setSearchResults] = useState<RankedSearchResult[]>([])
   const [searchMessage, setSearchMessage] = useState('')
   const [activeSearchQuery, setActiveSearchQuery] = useState('')
   const [searchSuggestions, setSearchSuggestions] = useState<string[]>([])
@@ -402,7 +442,7 @@ function App() {
         return
       }
 
-      const results = payload as SearchResult[]
+      const results = normalizeRankedResults(payload)
       setActiveSearchQuery(q)
       setSearchResults(results)
       setSearchMessage(results.length === 0 ? 'No results.' : '')
@@ -920,7 +960,11 @@ function App() {
         {openEventMessage && <p className="message">{openEventMessage}</p>}
 
         <div className="results">
-          {searchResults.map((result, index) => (
+          {searchResults.map((rankedResult, index) => {
+            const result = rankedResult.result
+            const insights = Array.isArray(rankedResult.insights) ? rankedResult.insights : []
+            const showInsights = sortMode === 'behavior' && insights.length > 0
+            return (
             <article key={result.path} className="result-card">
               <h3>
                 {highlightTerms.length > 0
@@ -954,6 +998,13 @@ function App() {
                   ? highlightText(result.preview, highlightTerms, `${result.path}-pv`)
                   : result.preview}
               </pre>
+              {showInsights && (
+                <ul className="result-insights" aria-label="Behavior ranking insights">
+                  {insights.map((insight, insightIndex) => (
+                    <li key={`${result.path}-insight-${insightIndex}`}>{insight}</li>
+                  ))}
+                </ul>
+              )}
               <div className="result-actions">
                 <button
                   type="button"
@@ -964,7 +1015,8 @@ function App() {
                 </button>
               </div>
             </article>
-          ))}
+            )
+          })}
         </div>
       </section>
       )}
