@@ -649,13 +649,6 @@ function App() {
         return next
       })
       setOpenEventMessage('Open event recorded.')
-      setTimeout(() => {
-        setOpenedResultPaths((prev) => {
-          const next = new Set(prev)
-          next.delete(filePath)
-          return next
-        })
-      }, 2000)
     } catch {
       setOpenEventMessage('Could not record open event.')
     }
@@ -964,13 +957,23 @@ function App() {
             const result = rankedResult.result
             const insights = Array.isArray(rankedResult.insights) ? rankedResult.insights : []
             const showInsights = sortMode === 'behavior' && insights.length > 0
+            const isOpened = openedResultPaths.has(result.path)
             return (
             <article key={result.path} className="result-card">
-              <h3>
-                {highlightTerms.length > 0
-                  ? highlightText(result.filename, highlightTerms, `${result.path}-fn`)
-                  : result.filename}
-              </h3>
+              <div className="result-header">
+                <h3>
+                  {highlightTerms.length > 0
+                    ? highlightText(result.filename, highlightTerms, `${result.path}-fn`)
+                    : result.filename}
+                </h3>
+                <button
+                  type="button"
+                  className={isOpened ? 'result-open-button opened' : 'result-open-button'}
+                  onClick={() => void trackOpenEvent(result.path, index + 1)}
+                >
+                  {isOpened ? 'Opened ✓' : 'Mark as opened'}
+                </button>
+              </div>
               <div className="meta-grid">
                 <p className="meta-item">
                   <span className="meta-label">Type</span>
@@ -1005,15 +1008,6 @@ function App() {
                   ))}
                 </ul>
               )}
-              <div className="result-actions">
-                <button
-                  type="button"
-                  className="result-open-button"
-                  onClick={() => void trackOpenEvent(result.path, index + 1)}
-                >
-                  {openedResultPaths.has(result.path) ? 'Opened ✓' : 'Mark as opened'}
-                </button>
-              </div>
             </article>
             )
           })}

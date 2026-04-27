@@ -501,8 +501,15 @@ button:disabled {
   margin: 0;
 }
 
-.result-actions {
-  margin-top: 10px;
+.result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.result-header h3 {
+  min-width: 0;
 }
 
 .result-open-button {
@@ -514,12 +521,20 @@ button:disabled {
   font-size: 0.82rem;
   font-weight: 600;
   padding: 8px 10px;
+  white-space: nowrap;
 }
 
 .result-open-button:hover:not(:disabled) {
   background: rgba(232, 247, 255, 0.95);
   filter: none;
   transform: none;
+}
+
+.result-open-button.opened {
+  border-color: rgba(16, 185, 129, 0.65);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.3));
+  color: #0f5132;
+  font-weight: 700;
 }
 
 .meta {
@@ -583,10 +598,10 @@ pre {
 .result-insights {
   margin: 10px 0 0;
   padding: 8px 10px 8px 24px;
-  border: 1px solid rgba(147, 210, 255, 0.45);
+  border: 1px solid rgba(250, 204, 21, 0.45);
   border-radius: 10px;
-  background: rgba(236, 248, 255, 0.72);
-  color: #245980;
+  background: linear-gradient(135deg, rgba(254, 249, 195, 0.78), rgba(255, 237, 213, 0.72));
+  color: #854d0e;
   font-size: 0.8rem;
   line-height: 1.45;
 }
@@ -610,6 +625,11 @@ pre {
 
   .search-row {
     grid-template-columns: 1fr;
+  }
+
+  .result-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .meta-grid {
