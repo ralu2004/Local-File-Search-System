@@ -3,6 +3,8 @@ package app.service.search;
 import app.db.Database;
 import app.db.DatabaseProvider;
 import app.model.RankedSearchResult;
+import app.repository.FileSearchRepository;
+import app.repository.SearchActivityRepository;
 import app.search.SearchEngine;
 import app.search.query.QueryParser;
 import app.service.support.DatabaseAccessor;
@@ -50,7 +52,8 @@ public class SearchService {
      */
     public List<String> suggestQueries(String dbPath, String prefix, int limit) throws SQLException, IOException {
         try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            return db.suggestQueries(QueryNormalizer.normalizeForHistory(prefix), limit);
+            SearchActivityRepository activity = db;
+            return activity.suggestQueries(QueryNormalizer.normalizeForHistory(prefix), limit);
         }
     }
 
@@ -59,7 +62,8 @@ public class SearchService {
      */
     public List<String> recentQueries(String dbPath, int limit) throws SQLException, IOException {
         try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            return db.recentQueries(limit);
+            SearchActivityRepository activity = db;
+            return activity.recentQueries(limit);
         }
     }
 
@@ -74,12 +78,13 @@ public class SearchService {
         String normalizedQuery = QueryNormalizer.normalizeForHistory(rawQuery);
         String openedAt = LocalDateTime.now().toString();
         try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            db.recordResultOpen(rawQuery, normalizedQuery, filePath, resultPosition, openedAt);
+            SearchActivityRepository activity = db;
+            activity.recordResultOpen(rawQuery, normalizedQuery, filePath, resultPosition, openedAt);
         }
     }
 
-    private List<RankedSearchResult> executeSearch(Database db, String input, int limit) throws SQLException {
-        SearchEngine engine = new SearchEngine(db, new QueryParser(), limit);
+    private List<RankedSearchResult> executeSearch(FileSearchRepository searchRepo, String input, int limit) throws SQLException {
+        SearchEngine engine = new SearchEngine(searchRepo, new QueryParser(), limit);
         return engine.search(input);
     }
 
