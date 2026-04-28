@@ -2,6 +2,12 @@ package app.service.support;
 
 import app.db.Database;
 import app.db.DatabaseProvider;
+import app.repository.CloseableFileMetadata;
+import app.repository.CloseableFileSearch;
+import app.repository.CloseableFileWrite;
+import app.repository.CloseableIndexRuns;
+import app.repository.CloseableIndexSession;
+import app.repository.CloseableSearchActivity;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -22,5 +28,29 @@ public final class DatabaseAccessor {
             return databaseProvider.openDefault();
         }
         return databaseProvider.open(dbPath);
+    }
+
+    public CloseableFileSearch openFileSearch(String dbPath) throws SQLException, IOException {
+        return openDatabase(dbPath);
+    }
+
+    public CloseableSearchActivity openSearchActivity(String dbPath) throws SQLException, IOException {
+        return openDatabase(dbPath);
+    }
+
+    public CloseableIndexRuns openIndexRuns(String dbPath) throws SQLException, IOException {
+        return openDatabase(dbPath);
+    }
+
+    public CloseableFileWrite openFileWrite(String dbPath) throws SQLException, IOException {
+        return openDatabase(dbPath);
+    }
+
+    public CloseableFileMetadata openFileMetadata(String dbPath) throws SQLException, IOException {
+        return openDatabase(dbPath);
+    }
+
+    public CloseableIndexSession openIndexSession(String dbPath) throws SQLException, IOException {
+        return openDatabase(dbPath);
     }
 }

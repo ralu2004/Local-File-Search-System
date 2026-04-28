@@ -113,11 +113,8 @@ public class ApiServer implements AutoCloseable {
             int limit = parsePositiveInt(ctx.queryParam("limit"), 20);
             int capped = Math.min(Math.max(limit, 1), 100);
             try {
-                List<IndexRun> runs = historyService.getHistory(dbPath);
-                List<IndexRunResponse> body = runs.stream()
-                        .limit(capped)
-                        .map(IndexRunResponse::from)
-                        .toList();
+                List<IndexRun> runs = historyService.getHistory(dbPath, capped);
+                List<IndexRunResponse> body = runs.stream().map(IndexRunResponse::from).toList();
                 writeJson(ctx, body);
             } catch (SQLException | IOException e) {
                 log.error("Failed to load index history", e);

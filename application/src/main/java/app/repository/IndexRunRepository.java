@@ -14,4 +14,5 @@ public interface IndexRunRepository {
     long startIndexing(LocalDateTime startedAt, String rootPath) throws SQLException;
     void endIndexing(long runId, IndexReport report) throws SQLException;
     List<IndexRun> getHistory() throws SQLException;
+    List<IndexRun> getHistory(int limit) throws SQLException;
 }

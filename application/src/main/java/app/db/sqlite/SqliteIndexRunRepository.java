@@ -73,6 +73,12 @@ public final class SqliteIndexRunRepository implements IndexRunRepository {
         return queryIndexRuns("SELECT * FROM index_runs ORDER BY started_at DESC");
     }
 
+    @Override
+    public List<IndexRun> getHistory(int limit) throws SQLException {
+        int capped = Math.min(Math.max(limit, 1), 1000);
+        return queryIndexRuns("SELECT * FROM index_runs ORDER BY started_at DESC LIMIT ?", capped);
+    }
+
     private List<IndexRun> queryIndexRuns(String sql, Object... params) throws SQLException {
         List<IndexRun> runs = new ArrayList<>();
         try (Connection conn = connections.open();

@@ -1,8 +1,8 @@
 package app.service.index;
 
-import app.db.Database;
 import app.db.DatabaseProvider;
 import app.model.IndexRun;
+import app.repository.CloseableIndexRuns;
 import app.service.support.DatabaseAccessor;
 
 import java.io.IOException;
@@ -20,8 +20,14 @@ public class HistoryService {
     }
 
     public List<IndexRun> getHistory(String dbPath) throws SQLException, IOException {
-        try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            return db.getHistory();
+        try (CloseableIndexRuns runs = databaseAccessor.openIndexRuns(dbPath)) {
+            return runs.getHistory();
+        }
+    }
+
+    public List<IndexRun> getHistory(String dbPath, int limit) throws SQLException, IOException {
+        try (CloseableIndexRuns runs = databaseAccessor.openIndexRuns(dbPath)) {
+            return runs.getHistory(limit);
         }
     }
 }

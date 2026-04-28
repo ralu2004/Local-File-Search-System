@@ -1,8 +1,10 @@
 package app.service.search;
 
-import app.db.Database;
 import app.db.DatabaseProvider;
 import app.model.RankedSearchResult;
+import app.repository.CloseableFileSearch;
+import app.repository.CloseableSearchActivity;
+import app.repository.FileSearchRepository;
 import app.search.SearchEngine;
 import app.search.query.QueryParser;
 import app.service.support.DatabaseAccessor;
@@ -37,20 +39,21 @@ public class SearchService {
      * suggestions and ranking.
      */
     public List<RankedSearchResult> search(String dbPath, String input, int limit) throws SQLException, IOException {
-        try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            long startedAt = System.nanoTime();
-            List<RankedSearchResult> results = executeSearch(db, input, limit);
-            recordSearchActivity(dbPath, input, results.size(), startedAt);
-            return results;
+        long startedAt = System.nanoTime();
+        List<RankedSearchResult> results;
+        try (CloseableFileSearch search = databaseAccessor.openFileSearch(dbPath)) {
+            results = executeSearch(search, input, limit);
         }
+        recordSearchActivity(dbPath, input, results.size(), startedAt);
+        return results;
     }
 
     /**
      * Returns prefix-based query suggestions from normalized search history.
      */
     public List<String> suggestQueries(String dbPath, String prefix, int limit) throws SQLException, IOException {
-        try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            return db.suggestQueries(QueryNormalizer.normalizeForHistory(prefix), limit);
+        try (CloseableSearchActivity activity = databaseAccessor.openSearchActivity(dbPath)) {
+            return activity.suggestQueries(QueryNormalizer.normalizeForHistory(prefix), limit);
         }
     }
 
@@ -58,8 +61,8 @@ public class SearchService {
      * Returns recent unique queries ordered by latest usage.
      */
     public List<String> recentQueries(String dbPath, int limit) throws SQLException, IOException {
-        try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            return db.recentQueries(limit);
+        try (CloseableSearchActivity activity = databaseAccessor.openSearchActivity(dbPath)) {
+            return activity.recentQueries(limit);
         }
     }
 
@@ -73,13 +76,13 @@ public class SearchService {
         String rawQuery = query == null ? "" : query;
         String normalizedQuery = QueryNormalizer.normalizeForHistory(rawQuery);
         String openedAt = LocalDateTime.now().toString();
-        try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            db.recordResultOpen(rawQuery, normalizedQuery, filePath, resultPosition, openedAt);
+        try (CloseableSearchActivity activity = databaseAccessor.openSearchActivity(dbPath)) {
+            activity.recordResultOpen(rawQuery, normalizedQuery, filePath, resultPosition, openedAt);
         }
     }
 
-    private List<RankedSearchResult> executeSearch(Database db, String input, int limit) throws SQLException {
-        SearchEngine engine = new SearchEngine(db, new QueryParser(), limit);
+    private List<RankedSearchResult> executeSearch(FileSearchRepository searchRepo, String input, int limit) throws SQLException {
+        SearchEngine engine = new SearchEngine(searchRepo, new QueryParser(), limit);
         return engine.search(input);
     }
 

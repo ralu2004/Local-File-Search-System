@@ -1,7 +1,8 @@
 package app.service.search;
 
-import app.db.Database;
 import app.db.DatabaseProvider;
+import app.repository.CloseableSearchActivity;
+import app.repository.SearchActivityRepository;
 import app.service.support.DatabaseAccessor;
 
 import java.io.IOException;
@@ -28,8 +29,8 @@ public final class SearchActivityObserver implements SearchObserver {
             long durationMs,
             String executedAt
     ) throws SQLException, IOException {
-        try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            db.recordSearch(rawQuery, normalizedQuery, resultCount, durationMs, executedAt);
+        try (CloseableSearchActivity activity = databaseAccessor.openSearchActivity(dbPath)) {
+            activity.recordSearch(rawQuery, normalizedQuery, resultCount, durationMs, executedAt);
         }
     }
 }

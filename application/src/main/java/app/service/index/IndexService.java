@@ -1,12 +1,12 @@
 package app.service.index;
 
 import app.crawler.Crawler;
-import app.db.Database;
 import app.db.DatabaseProvider;
 import app.extractor.Extractor;
 import app.indexer.IndexReport;
 import app.indexer.Indexer;
 import app.indexer.job.IndexingLiveProgress;
+import app.repository.CloseableIndexSession;
 import app.service.support.DatabaseAccessor;
 
 import java.io.IOException;
@@ -32,8 +32,8 @@ public class IndexService {
     public IndexReport indexNow(String dbPath, Path root, List<String> ignoreRules,
                                 int maxFileSizeMb, int previewLines, int batchSize)
             throws SQLException, IOException {
-        try (Database db = databaseAccessor.openDatabase(dbPath)) {
-            return createIndexer(db, root, ignoreRules, maxFileSizeMb, previewLines, batchSize, null).run();
+        try (CloseableIndexSession session = databaseAccessor.openIndexSession(dbPath)) {
+            return createIndexer(session, root, ignoreRules, maxFileSizeMb, previewLines, batchSize, null).run();
         }
     }
 
@@ -41,17 +41,19 @@ public class IndexService {
                                            int maxFileSizeMb, int previewLines, int batchSize,
                                            IndexingLiveProgress liveProgress) {
         try {
-            Database db = databaseAccessor.openDatabase(dbPath);
+            CloseableIndexSession session = databaseAccessor.openIndexSession(dbPath);
             Crawler crawler = new Crawler(Path.of(root), safeIgnoreRules(ignoreRules));
             Extractor extractor = new Extractor(
                     sanitizePreviewLines(previewLines),
                     toMaxBytes(maxFileSizeMb)
             );
-            return new Indexer(db, db, db, crawler, extractor, sanitizeBatchSize(batchSize), liveProgress) {
+            return new Indexer(session, session, session, crawler, extractor, sanitizeBatchSize(batchSize), liveProgress) {
                 @Override
                 public IndexReport run() {
-                    try (db) {
+                    try (session) {
                         return super.run();
+                    } catch (SQLException e) {
+                        throw new IllegalStateException("Failed to close index session: " + e.getMessage(), e);
                     }
                 }
             };
@@ -60,7 +62,7 @@ public class IndexService {
         }
     }
 
-    private Indexer createIndexer(Database db, Path root, List<String> ignoreRules,
+    private Indexer createIndexer(CloseableIndexSession session, Path root, List<String> ignoreRules,
                                   int maxFileSizeMb, int previewLines, int batchSize,
                                   IndexingLiveProgress liveProgress) {
         Crawler crawler = new Crawler(root, safeIgnoreRules(ignoreRules));
@@ -68,7 +70,7 @@ public class IndexService {
                 sanitizePreviewLines(previewLines),
                 toMaxBytes(maxFileSizeMb)
         );
-        return new Indexer(db, db, db, crawler, extractor, sanitizeBatchSize(batchSize), liveProgress);
+        return new Indexer(session, session, session, crawler, extractor, sanitizeBatchSize(batchSize), liveProgress);
     }
 
     private long toMaxBytes(int maxFileSizeMb) {
