@@ -17,7 +17,7 @@ import java.util.List;
  * Executes parsed search queries against a {@link app.repository.FileSearchRepository}.
  * <p>
  * Uses {@link app.search.query.QueryParser} to interpret the user input syntax and
- * returns a list of {@link app.model.SearchResult} hits.
+ * returns ranked hits as {@link app.model.RankedSearchResult} values.
  */
 public class SearchEngine {
 
@@ -37,6 +37,13 @@ public class SearchEngine {
         this.limit = limit;
     }
 
+    /**
+     * Parses user input, resolves the requested ranking strategy, and executes
+     * repository search with a normalized history key.
+     * <p>
+     * Invalid query syntax is treated as a user input issue and returns an
+     * empty result set.
+     */
     public List<RankedSearchResult> search(String input) throws SQLException {
         try {
             Query query = parser.parse(input);

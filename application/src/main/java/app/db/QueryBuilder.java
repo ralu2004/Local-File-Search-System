@@ -21,7 +21,11 @@ import java.util.Map;
  * to promote results users open more often for the same normalized query.
  */
 public class QueryBuilder {
-    
+
+    /**
+     * Tokenized piece used while rebuilding FTS expressions:
+     * either a text token or a quote marker, plus quote-context metadata.
+     */
     private record Part(String text, boolean isQuoteMarker, boolean inQuotes) {}
 
     private static final RankingStrategy DEFAULT_STRATEGY = new StaticRankingStrategy();
@@ -36,6 +40,13 @@ public class QueryBuilder {
         this.rankingStrategy = rankingStrategy;
     }
 
+    /**
+     * Builds a query with optional history signals.
+     *
+     * @param query user query object
+     * @param limit max number of rows to return
+     * @param normalizedQuery normalized history key; blank disables history joins/boosts
+     */
     public BuiltQuery build(Query query, int limit, String normalizedQuery) {
         return buildInternal(query, limit, normalizedQuery == null ? "" : normalizedQuery.trim().toLowerCase());
     }
@@ -44,6 +55,10 @@ public class QueryBuilder {
         return buildInternal(query, limit, "");
     }
 
+    /**
+     * Main assembly pipeline:
+     * select + optional history joins, filter predicates, ordering, then limit.
+     */
     private BuiltQuery buildInternal(Query query, int limit, String normalizedQuery) {
         StringBuilder sql = new StringBuilder();
         List<Object> params = new ArrayList<>();
@@ -70,6 +85,10 @@ public class QueryBuilder {
         return query.value() != null && !query.value().isBlank();
     }
 
+    /**
+     * Chooses between FTS-backed SELECT and plain SELECT. FTS path is used when
+     * free text or {@code content:} requires MATCH syntax.
+     */
     private void appendBaseSelect(StringBuilder sql, List<Object> params, Query query, boolean hasHistorySignal) {
         String ftsMatch = buildFtsMatchString(query);
         if (ftsMatch != null) {
@@ -80,6 +99,10 @@ public class QueryBuilder {
         appendPlainSelect(sql, hasHistorySignal);
     }
 
+    /**
+     * Builds the FTS MATCH expression from free text and optional content filter.
+     * Returns null when no FTS term is needed.
+     */
     private String buildFtsMatchString(Query query) {
         String freeTerm = hasFtsTerm(query) ? toFtsPrefixQuery(query.value()) : null;
         String contentTerm = query.filters().containsKey("content") ? "content:" + query.filters().get("content") : null;
@@ -95,6 +118,10 @@ public class QueryBuilder {
         return null;
     }
 
+    /**
+     * Appends the FTS-based SELECT with optional history joins and projected
+     * behavior signal columns used by ranking insights.
+     */
     private void appendFtsSelect(StringBuilder sql, boolean hasHistorySignal) {
         String signalColumns = getSignalColumns(hasHistorySignal);
         sql.append(
@@ -120,6 +147,10 @@ public class QueryBuilder {
         }
     }
 
+    /**
+     * Appends the non-FTS SELECT path used for filter-only queries, while still
+     * projecting behavior signal columns for stable result mapping.
+     */
     private void appendPlainSelect(StringBuilder sql, boolean hasHistorySignal) {
         String signalColumns = getSignalColumns(hasHistorySignal);
         sql.append(
@@ -134,6 +165,10 @@ public class QueryBuilder {
         }
     }
 
+    /**
+     * Projects behavior signal columns with either real history values or
+     * stable zero/null defaults when history joins are disabled.
+     */
     private static String getSignalColumns(boolean hasHistorySignal) {
         return hasHistorySignal
                 ? ", COALESCE(roh.open_count, 0) AS open_count"
@@ -143,6 +178,11 @@ public class QueryBuilder {
                 : ", 0 AS open_count, NULL AS last_opened_at, 0 AS position_sum, 0 AS position_count";
     }
 
+    /**
+     * Joins per-query aggregates:
+     * - {@code roh}: open-event frequency/recency/position signals by file
+     * - {@code sh}: query frequency/recency signals for the normalized query
+     */
     private void appendHistoryBoostJoins(StringBuilder sql) {
         sql.append("""
                 LEFT JOIN (
@@ -166,12 +206,22 @@ public class QueryBuilder {
                 """);
     }
 
+    /**
+     * Binds normalized query for all history subquery placeholders.
+     */
     private void appendHistorySignalParams(List<Object> params, String normalizedQuery) {
         params.add(normalizedQuery);
         params.add(normalizedQuery);
         params.add(normalizedQuery);
     }
 
+    /**
+     * Ordering rules:
+     * - FTS queries: default to MATCH rank, unless explicit sort is present
+     * - explicit sort: strategy takes precedence; FTS rank remains a tie-breaker
+     * - non-FTS queries: strategy ordering is primary
+     * - history signals are injected as additional tie-breakers when enabled
+     */
     private void appendOrdering(StringBuilder sql, boolean usesFts, boolean hasHistorySignal, boolean prioritizeStrategy) {
         if (usesFts) {
             sql.append(" ORDER BY ");
@@ -207,11 +257,18 @@ public class QueryBuilder {
         }
     }
 
+    /**
+     * Appends hard row cap and binds the limit value.
+     */
     private void appendLimit(StringBuilder sql, List<Object> params, int limit) {
         sql.append(" LIMIT ?");
         params.add(limit);
     }
 
+    /**
+     * Appends metadata filters outside FTS MATCH; each helper adds SQL predicate
+     * fragments and associated parameters.
+     */
     private void appendFilters(StringBuilder sql, Map<String, String> filters, List<Object> params) {
         if (filters == null || filters.isEmpty()) {
             return;
@@ -252,6 +309,10 @@ public class QueryBuilder {
         params.add(Long.parseLong(filters.get("size")));
     }
 
+    /**
+     * Adds path predicates using slash-normalized matching so path filters work
+     * across Windows and Unix separators.
+     */
     private void addPathFilter(Map<String, String> filters, List<String> conditions, List<Object> params) {
         if (!filters.containsKey("path")) {
             return;
@@ -267,12 +328,15 @@ public class QueryBuilder {
             if (value.isEmpty()) {
                 continue;
             }
-            // normalize stored Windows paths (\) to Unix-style (/) so path:src/main works cross-platform.
             conditions.add("REPLACE(f.path, char(92), '/') LIKE ?");
             params.add("%" + value.replace('\\', '/') + "%");
         }
     }
 
+    /**
+     * Converts user text into a FTS-friendly expression and applies trailing
+     * prefix expansion to the last eligible token.
+     */
     private String toFtsPrefixQuery(String input) {
         if (input == null) return "";
         String query = input.trim();
@@ -307,6 +371,7 @@ public class QueryBuilder {
         return parts;
     }
 
+    /** Emits the current buffered token, preserving quote-context metadata. */
     private void flushToken(List<Part> parts, StringBuilder token, boolean inQuotes) {
         if (token.length() == 0) {
             return;
@@ -315,6 +380,7 @@ public class QueryBuilder {
         token.setLength(0);
     }
 
+    /** Finds the last unquoted token eligible for FTS prefix expansion. */
     private int findLastPrefixCandidateIndex(List<Part> parts) {
         int index = -1;
         for (int i = 0; i < parts.size(); i++) {
@@ -327,6 +393,7 @@ public class QueryBuilder {
         return index;
     }
 
+    /** Rebuilds the token stream into a normalized FTS query string. */
     private String rebuildFtsQuery(List<Part> parts, int lastPrefixCandidateIndex) {
         StringBuilder rebuilt = new StringBuilder();
         boolean openQuoteJustAppended = false;
@@ -347,6 +414,7 @@ public class QueryBuilder {
         return rebuilt.toString().trim();
     }
 
+    /** Appends an opening/closing quote marker and tracks quote state. */
     private boolean appendQuoteMarker(StringBuilder rebuilt, boolean openQuoteJustAppended) {
         if (openQuoteJustAppended) {
             rebuilt.append("\"");
@@ -359,6 +427,7 @@ public class QueryBuilder {
         return true;
     }
 
+    /** Returns true when a separating space is needed before the next token. */
     private boolean shouldInsertTokenSeparator(StringBuilder rebuilt) {
         if (rebuilt.isEmpty()) {
             return false;
@@ -367,6 +436,7 @@ public class QueryBuilder {
         return last != '"' && last != ' ';
     }
 
+    /** Checks whether a token can safely receive trailing '*' prefix syntax. */
     private boolean isPrefixCandidate(String rawToken) {
         if (rawToken == null) return false;
         String token = rawToken.trim();
@@ -377,6 +447,7 @@ public class QueryBuilder {
         return token.matches("[A-Za-z0-9_]+");
     }
 
+    /** Transforms a raw token into its FTS-safe representation. */
     private String transformToken(String rawToken, boolean inQuotes, boolean shouldPrefix) {
         if (rawToken == null) return "";
         String token = rawToken.trim();

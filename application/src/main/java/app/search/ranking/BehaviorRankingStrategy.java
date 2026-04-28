@@ -30,6 +30,9 @@ public class BehaviorRankingStrategy implements RankingStrategy {
                 ) DESC""".formatted(SqliteBehaviorScoreFunction.NAME);
     }
 
+    /**
+     * Enables user-facing explanations for behavior-based ordering decisions.
+     */
     @Override
     public boolean producesInsights() {
         return true;

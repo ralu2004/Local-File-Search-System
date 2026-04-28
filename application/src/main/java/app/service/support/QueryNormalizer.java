@@ -19,6 +19,8 @@ public final class QueryNormalizer {
 
     /**
      * Normalizes a query for behavior/history keys, removing UI sort qualifiers.
+     * <p>
+     * Example: {@code "  docs sort:behavior  " -> "docs"}.
      */
     public static String normalizeForHistory(String input) {
         if (input == null) {
