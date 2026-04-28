@@ -1,7 +1,7 @@
 package app.service.support;
 
-import app.db.Database;
 import app.db.DatabaseProvider;
+import app.db.DatabaseSession;
 import app.repository.CloseableFileMetadata;
 import app.repository.CloseableFileSearch;
 import app.repository.CloseableFileWrite;
@@ -23,7 +23,7 @@ public final class DatabaseAccessor {
         this.databaseProvider = databaseProvider;
     }
 
-    public Database openDatabase(String dbPath) throws SQLException, IOException {
+    private DatabaseSession openSession(String dbPath) throws SQLException, IOException {
         if (dbPath == null || dbPath.isBlank()) {
             return databaseProvider.openDefault();
         }
@@ -31,26 +31,26 @@ public final class DatabaseAccessor {
     }
 
     public CloseableFileSearch openFileSearch(String dbPath) throws SQLException, IOException {
-        return openDatabase(dbPath);
+        return openSession(dbPath);
     }
 
     public CloseableSearchActivity openSearchActivity(String dbPath) throws SQLException, IOException {
-        return openDatabase(dbPath);
+        return openSession(dbPath);
     }
 
     public CloseableIndexRuns openIndexRuns(String dbPath) throws SQLException, IOException {
-        return openDatabase(dbPath);
+        return openSession(dbPath);
     }
 
     public CloseableFileWrite openFileWrite(String dbPath) throws SQLException, IOException {
-        return openDatabase(dbPath);
+        return openSession(dbPath);
     }
 
     public CloseableFileMetadata openFileMetadata(String dbPath) throws SQLException, IOException {
-        return openDatabase(dbPath);
+        return openSession(dbPath);
     }
 
     public CloseableIndexSession openIndexSession(String dbPath) throws SQLException, IOException {
-        return openDatabase(dbPath);
+        return openSession(dbPath);
     }
 }
