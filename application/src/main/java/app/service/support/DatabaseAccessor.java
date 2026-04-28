@@ -6,6 +6,7 @@ import app.repository.CloseableFileMetadata;
 import app.repository.CloseableFileSearch;
 import app.repository.CloseableFileWrite;
 import app.repository.CloseableIndexRuns;
+import app.repository.CloseableIndexSession;
 import app.repository.CloseableSearchActivity;
 
 import java.io.IOException;
@@ -46,6 +47,10 @@ public final class DatabaseAccessor {
     }
 
     public CloseableFileMetadata openFileMetadata(String dbPath) throws SQLException, IOException {
+        return openDatabase(dbPath);
+    }
+
+    public CloseableIndexSession openIndexSession(String dbPath) throws SQLException, IOException {
         return openDatabase(dbPath);
     }
 }

@@ -25,7 +25,7 @@ import java.util.Set;
  */
 public class Database implements FileRepository, IndexRunRepository, SearchActivityRepository,
         CloseableFileSearch, CloseableSearchActivity, CloseableIndexRuns,
-        CloseableFileWrite, CloseableFileMetadata {
+        CloseableFileWrite, CloseableFileMetadata, CloseableIndexSession {
 
     private final SqliteConnectionProvider connections;
     private final SqliteFileRepository fileRepository;
