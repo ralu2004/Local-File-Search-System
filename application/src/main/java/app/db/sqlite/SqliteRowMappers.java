@@ -48,10 +48,10 @@ final class SqliteRowMappers {
         if (!strategy.producesInsights()) {
             return new RankedSearchResult(result, List.of());
         }
-        int openCount = readIntOrDefault(rs, "open_count", 0);
-        String lastOpenedAt = readStringOrNull(rs, "last_opened_at");
-        long positionSum = readLongOrDefault(rs, "position_sum", 0L);
-        int positionCount = readIntOrDefault(rs, "position_count", 0);
+        int openCount = rs.getInt("open_count");
+        String lastOpenedAt = rs.getString("last_opened_at");
+        long positionSum = rs.getLong("position_sum");
+        int positionCount = rs.getInt("position_count");
         List<String> insights = BehaviorRankingInsights.describe(
                 openCount,
                 lastOpenedAt,
@@ -60,30 +60,6 @@ final class SqliteRowMappers {
                 LocalDateTime.now()
         );
         return new RankedSearchResult(result, insights);
-    }
-
-    private static int readIntOrDefault(ResultSet rs, String column, int fallback) {
-        try {
-            return rs.getInt(column);
-        } catch (SQLException e) {
-            return fallback;
-        }
-    }
-
-    private static long readLongOrDefault(ResultSet rs, String column, long fallback) {
-        try {
-            return rs.getLong(column);
-        } catch (SQLException e) {
-            return fallback;
-        }
-    }
-
-    private static String readStringOrNull(ResultSet rs, String column) {
-        try {
-            return rs.getString(column);
-        } catch (SQLException e) {
-            return null;
-        }
     }
 
     static IndexRun indexRun(ResultSet rs) throws SQLException {
