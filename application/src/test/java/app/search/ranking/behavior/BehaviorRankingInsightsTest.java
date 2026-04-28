@@ -64,4 +64,17 @@ class BehaviorRankingInsightsTest {
                 "Expected date-form recency for older events"
         );
     }
+
+    @Test
+    void describe_usesWeekBucketStartingAtSevenDays() {
+        List<String> insights = BehaviorRankingInsights.describe(
+                2,
+                NOW.minusDays(7).toString(),
+                4L,
+                2,
+                NOW
+        );
+
+        assertTrue(insights.contains("Last opened 1 week ago"));
+    }
 }

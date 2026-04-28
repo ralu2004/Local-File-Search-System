@@ -20,7 +20,11 @@ public final class BehaviorRankingInsights {
             return List.of();
         }
 
-        insights.add("You've opened this " + openCount + " times for similar searches");
+        if (openCount == 1) {
+            insights.add("You've opened this once for similar searches");
+        } else {
+            insights.add("You've opened this " + openCount + " times for similar searches");
+        }
 
         String recency = toRelativeTime(lastOpenedAt, now);
         if (recency != null) {
@@ -58,7 +62,7 @@ public final class BehaviorRankingInsights {
         if (hours < 24) return hours == 1 ? "1 hour ago" : hours + " hours ago";
         if (hours < 48) return "yesterday";
         long days = age.toDays();
-        if (days < 14) return days + " days ago";
+        if (days < 7) return days + " days ago";
         if (days < 60) {
             long weeks = Math.max(1, days / 7);
             return weeks == 1 ? "1 week ago" : weeks + " weeks ago";
