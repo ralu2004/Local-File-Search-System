@@ -2,11 +2,11 @@ package app.service.support;
 
 import app.db.Database;
 import app.db.DatabaseProvider;
-import app.repository.FileMetadataRepository;
-import app.repository.FileSearchRepository;
-import app.repository.FileWriteRepository;
-import app.repository.IndexRunRepository;
-import app.repository.SearchActivityRepository;
+import app.repository.CloseableFileMetadata;
+import app.repository.CloseableFileSearch;
+import app.repository.CloseableFileWrite;
+import app.repository.CloseableIndexRuns;
+import app.repository.CloseableSearchActivity;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -29,23 +29,23 @@ public final class DatabaseAccessor {
         return databaseProvider.open(dbPath);
     }
 
-    public FileSearchRepository openFileSearch(String dbPath) throws SQLException, IOException {
+    public CloseableFileSearch openFileSearch(String dbPath) throws SQLException, IOException {
         return openDatabase(dbPath);
     }
 
-    public SearchActivityRepository openSearchActivity(String dbPath) throws SQLException, IOException {
+    public CloseableSearchActivity openSearchActivity(String dbPath) throws SQLException, IOException {
         return openDatabase(dbPath);
     }
 
-    public IndexRunRepository openIndexRuns(String dbPath) throws SQLException, IOException {
+    public CloseableIndexRuns openIndexRuns(String dbPath) throws SQLException, IOException {
         return openDatabase(dbPath);
     }
 
-    public FileWriteRepository openFileWrite(String dbPath) throws SQLException, IOException {
+    public CloseableFileWrite openFileWrite(String dbPath) throws SQLException, IOException {
         return openDatabase(dbPath);
     }
 
-    public FileMetadataRepository openFileMetadata(String dbPath) throws SQLException, IOException {
+    public CloseableFileMetadata openFileMetadata(String dbPath) throws SQLException, IOException {
         return openDatabase(dbPath);
     }
 }

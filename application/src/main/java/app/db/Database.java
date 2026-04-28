@@ -3,9 +3,7 @@ package app.db;
 import app.db.sqlite.*;
 import app.indexer.IndexReport;
 import app.model.*;
-import app.repository.FileRepository;
-import app.repository.IndexRunRepository;
-import app.repository.SearchActivityRepository;
+import app.repository.*;
 import app.search.query.Query;
 import app.search.ranking.RankingStrategy;
 
@@ -25,7 +23,9 @@ import java.util.Set;
  * {@link app.db.sqlite.SqliteSearchActivityRepository}; creates the DB file
  * parent directory and applies schema on construction.
  */
-public class Database implements FileRepository, IndexRunRepository, SearchActivityRepository, AutoCloseable {
+public class Database implements FileRepository, IndexRunRepository, SearchActivityRepository,
+        CloseableFileSearch, CloseableSearchActivity, CloseableIndexRuns,
+        CloseableFileWrite, CloseableFileMetadata {
 
     private final SqliteConnectionProvider connections;
     private final SqliteFileRepository fileRepository;
