@@ -33,6 +33,71 @@ class BehaviorRankingInsightsTest {
     }
 
     @Test
+    void describe_formatsJustNowForSubMinuteAge() {
+        List<String> insights = BehaviorRankingInsights.describe(
+                1,
+                NOW.minusSeconds(20).toString(),
+                1L,
+                1,
+                NOW
+        );
+
+        assertTrue(insights.contains("Last opened just now"));
+    }
+
+    @Test
+    void describe_formatsFutureTimestampAsJustNow() {
+        List<String> insights = BehaviorRankingInsights.describe(
+                1,
+                NOW.plusMinutes(5).toString(),
+                1L,
+                1,
+                NOW
+        );
+
+        assertTrue(insights.contains("Last opened just now"));
+    }
+
+    @Test
+    void describe_formatsSingleMinuteWithSingularLabel() {
+        List<String> insights = BehaviorRankingInsights.describe(
+                1,
+                NOW.minusMinutes(1).toString(),
+                1L,
+                1,
+                NOW
+        );
+
+        assertTrue(insights.contains("Last opened 1 minute ago"));
+    }
+
+    @Test
+    void describe_formatsYesterdayFor24To48HourRange() {
+        List<String> insights = BehaviorRankingInsights.describe(
+                1,
+                NOW.minusHours(30).toString(),
+                1L,
+                1,
+                NOW
+        );
+
+        assertTrue(insights.contains("Last opened yesterday"));
+    }
+
+    @Test
+    void describe_keepsDayFormatUpToSixDays() {
+        List<String> insights = BehaviorRankingInsights.describe(
+                1,
+                NOW.minusDays(6).toString(),
+                1L,
+                1,
+                NOW
+        );
+
+        assertTrue(insights.contains("Last opened 6 days ago"));
+    }
+
+    @Test
     void describe_omitsRecencyForMalformedTimestamp() {
         List<String> insights = BehaviorRankingInsights.describe(2, "invalid-date", 4L, 2, NOW);
 
@@ -76,5 +141,18 @@ class BehaviorRankingInsightsTest {
         );
 
         assertTrue(insights.contains("Last opened 1 week ago"));
+    }
+
+    @Test
+    void describe_formatsMultipleWeeksInWeekBucket() {
+        List<String> insights = BehaviorRankingInsights.describe(
+                2,
+                NOW.minusDays(21).toString(),
+                4L,
+                2,
+                NOW
+        );
+
+        assertTrue(insights.contains("Last opened 3 weeks ago"));
     }
 }
