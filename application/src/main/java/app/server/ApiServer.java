@@ -1,7 +1,7 @@
 package app.server;
 
 import app.db.DatabaseProvider;
-import app.db.SqliteDatabaseProvider;
+import app.db.sqlite.SqliteDatabaseProvider;
 import app.indexer.job.BackgroundIndexer;
 import app.indexer.job.IndexingJobSnapshot;
 import app.model.IndexRun;

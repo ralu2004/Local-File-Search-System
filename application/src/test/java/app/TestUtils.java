@@ -1,7 +1,7 @@
 package app;
 
 import app.db.DatabaseProvider;
-import app.db.SqliteDatabaseProvider;
+import app.db.sqlite.SqliteDatabaseProvider;
 import app.indexer.IndexReport;
 import app.model.RankedSearchResult;
 import app.model.SearchResult;

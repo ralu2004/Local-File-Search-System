@@ -1,8 +1,7 @@
-package app.db;
+package app.db.sqlite;
 
-import app.db.sqlite.SchemaInitializer;
-import app.db.sqlite.SqliteConnectionProvider;
-import app.db.sqlite.SqliteDatabaseSession;
+import app.db.DatabaseProvider;
+import app.db.DatabaseSession;
 
 import java.io.IOException;
 import java.nio.file.Files;

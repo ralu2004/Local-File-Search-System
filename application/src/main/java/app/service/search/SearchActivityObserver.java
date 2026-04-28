@@ -2,7 +2,6 @@ package app.service.search;
 
 import app.db.DatabaseProvider;
 import app.repository.CloseableSearchActivity;
-import app.repository.SearchActivityRepository;
 import app.service.support.DatabaseAccessor;
 
 import java.io.IOException;
