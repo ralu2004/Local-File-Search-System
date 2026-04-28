@@ -96,12 +96,7 @@ public class QueryBuilder {
     }
 
     private void appendFtsSelect(StringBuilder sql, boolean hasHistorySignal) {
-        String signalColumns = hasHistorySignal
-                ? ", COALESCE(roh.open_count, 0) AS open_count"
-                  + ", roh.last_opened_at AS last_opened_at"
-                  + ", COALESCE(roh.position_sum, 0) AS position_sum"
-                  + ", COALESCE(roh.position_count, 0) AS position_count"
-                : ", 0 AS open_count, NULL AS last_opened_at, 0 AS position_sum, 0 AS position_count";
+        String signalColumns = getSignalColumns(hasHistorySignal);
         sql.append(
                 "WITH matched AS (\n" +
                 "    SELECT path,\n" +
@@ -126,12 +121,7 @@ public class QueryBuilder {
     }
 
     private void appendPlainSelect(StringBuilder sql, boolean hasHistorySignal) {
-        String signalColumns = hasHistorySignal
-                ? ", COALESCE(roh.open_count, 0) AS open_count"
-                  + ", roh.last_opened_at AS last_opened_at"
-                  + ", COALESCE(roh.position_sum, 0) AS position_sum"
-                  + ", COALESCE(roh.position_count, 0) AS position_count"
-                : ", 0 AS open_count, NULL AS last_opened_at, 0 AS position_sum, 0 AS position_count";
+        String signalColumns = getSignalColumns(hasHistorySignal);
         sql.append(
                 "SELECT fts.path, fts.filename, fts.preview, f.extension, f.modified_at, f.size_bytes" +
                 signalColumns +
@@ -142,6 +132,15 @@ public class QueryBuilder {
         if (hasHistorySignal) {
             appendHistoryBoostJoins(sql);
         }
+    }
+
+    private static String getSignalColumns(boolean hasHistorySignal) {
+        return hasHistorySignal
+                ? ", COALESCE(roh.open_count, 0) AS open_count"
+                  + ", roh.last_opened_at AS last_opened_at"
+                  + ", COALESCE(roh.position_sum, 0) AS position_sum"
+                  + ", COALESCE(roh.position_count, 0) AS position_count"
+                : ", 0 AS open_count, NULL AS last_opened_at, 0 AS position_sum, 0 AS position_count";
     }
 
     private void appendHistoryBoostJoins(StringBuilder sql) {
