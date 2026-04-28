@@ -78,6 +78,7 @@ java -jar application/target/application-1.0-SNAPSHOT.jar search "<query>"
 | `config ext:json` | Combined full-text and metadata |
 
 Qualifiers can appear in any order and combine with `AND` semantics. Duplicate qualifiers (e.g., two `content:` filters) compose with `AND`.
+For CLI usage, sorting is query-based (`sort:<mode>`), not a separate `--sort` flag.
 
 **Examples:**
 
@@ -181,6 +182,122 @@ The UI also surfaces query suggestions based on prefix matches against search hi
 
 The following sections document the architectural choices of the ranking system, including the trade-offs that were considered and deliberately accepted.
 
+### Request flow
+
+The sequence diagram below traces a personalized-search request from the UI to SQLite and back, showing where each layer narrows its dependencies and where the behavior-score UDF runs. The component diagram shows the post-decomposition/current shape of the persistence layer.
+
+#### Personalized search - request sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as Frontend (SearchPanel)
+    participant API as ApiServer
+    participant SS as SearchService
+    participant SE as SearchEngine
+    participant Acc as DatabaseAccessor
+    participant Sess as DatabaseSession<br/>(SqliteDatabaseSession)
+    participant FC as FileContext
+    participant Repo as SqliteFileRepository
+    participant DB as SQLite + FTS5<br/>+ behavior_score UDF
+    participant Obs as SearchActivityObserver
+
+    UI->>API: GET /api/search?q=auth+sort:behavior
+    API->>SS: search(dbPath, query, limit)
+
+    SS->>Acc: openFileSearch(dbPath)
+    Acc->>Sess: open(dbPath)
+    Sess-->>Acc: DatabaseSession
+    Note right of Acc: returns CloseableFileSearch<br/>(narrow view)
+    Acc-->>SS: CloseableFileSearch
+
+    SS->>SE: new SearchEngine(searchRepo, parser, limit)
+    SS->>SE: search(input)
+    SE->>SE: parse query, resolve strategy
+    SE->>FC: search(query, limit, BehaviorRankingStrategy, normalizedQuery)
+
+    FC->>Repo: search(...)
+    Repo->>DB: SELECT ... ORDER BY CASE ... behavior_score(...) DESC
+    Note right of DB: UDF computes behavior score<br/>per row using Java formula
+    DB-->>Repo: rows
+    Repo-->>FC: List<RankedSearchResult> (with insights)
+    FC-->>SE: results
+    SE-->>SS: results
+
+    SS->>Obs: onSearchExecuted(...)
+    Obs->>Acc: openSearchActivity(dbPath)
+    Acc-->>Obs: CloseableSearchActivity
+    Obs->>Sess: recordSearch(...)
+    Note right of Obs: Records query + duration<br/>for future personalization
+
+    SS-->>API: List<RankedSearchResult>
+    API-->>UI: JSON (results + insights)
+    UI->>UI: render results, show insights<br/>under top files
+```
+
+The narrowing happens at `openFileSearch`: services receive a `CloseableFileSearch` (a narrow view), not a session or a `Database`. The compiler enforces that only file-search methods can be called from `SearchService` at this point in the flow. The same pattern repeats for activity recording via `CloseableSearchActivity`.
+
+#### Persistence layer - component structure
+
+```mermaid
+graph TB
+    subgraph svc["Service layer (consumers)"]
+        SS[SearchService]
+        IS[IndexService]
+        HS[HistoryService]
+        Obs[SearchActivityObserver]
+    end
+
+    Acc[DatabaseAccessor]
+
+    subgraph ifaces["Closeable view interfaces<br/>(app.repository)"]
+        CFS[CloseableFileSearch]
+        CSA[CloseableSearchActivity]
+        CIR[CloseableIndexRuns]
+        CIS[CloseableIndexSession]
+    end
+
+    DS[DatabaseSession<br/>umbrella interface]
+
+    subgraph impl["SQLite implementation (app.db.sqlite)"]
+        SDS[SqliteDatabaseSession]
+        FC[FileContext]
+        IRC[IndexRunContext]
+        AC[ActivityContext]
+        SCP[SqliteConnectionProvider]
+    end
+
+    SS -->|via| CFS
+    SS -->|via| CSA
+    IS -->|via| CIS
+    HS -->|via| CIR
+    Obs -->|via| CSA
+
+    CFS -.implemented by.-> SDS
+    CSA -.implemented by.-> SDS
+    CIR -.implemented by.-> SDS
+    CIS -.implemented by.-> SDS
+
+    DS -.aggregates.-> CFS
+    DS -.aggregates.-> CSA
+    DS -.aggregates.-> CIR
+    DS -.aggregates.-> CIS
+
+    SDS -->|delegates to| FC
+    SDS -->|delegates to| IRC
+    SDS -->|delegates to| AC
+
+    FC -->|uses| SCP
+    IRC -->|uses| SCP
+    AC -->|uses| SCP
+
+    Acc -->|opens| DS
+    SS -.uses.-> Acc
+    IS -.uses.-> Acc
+    HS -.uses.-> Acc
+    Obs -.uses.-> Acc
+```
+
 ### Behavior score: SQLite UDF instead of inline SQL
 
 The personalized ranking formula combines three signals into a single weighted score. Two implementation paths were considered:
@@ -211,6 +328,12 @@ The persistence layer underwent two refactors during Iteration 2:
 ### Frontend structure
 
 `App.tsx` is the top-level component owning section state and layout. Indexing concerns (config form, status badge, history table) live in `IndexPanel`; search concerns (search bar, sort selector, results, insights) live in `SearchPanel`. Leaf components (`SuggestionBox`, `ResultCard`, `StatusBadge`) are presentational. All HTTP calls are centralized in `api/client.ts`. Shared types live in `types.ts`. Pure utilities (`formatFileSize`, `getFolderPath`, `highlightText`) are extracted to the `utils/*` modules.
+
+### Known limitations
+
+- The indexer targets text-like files and skips non-text/binary files.
+- CLI sorting is expressed inside the query (`sort:...`), not via a separate `--sort` option.
+- Symlink-related behavior may vary by OS permissions (the test suite already marks this as optional on unsupported environments).
 
 ---
 
