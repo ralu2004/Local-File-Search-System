@@ -1,6 +1,8 @@
 package app.integration;
 
 import app.TestUtils;
+import app.db.DatabaseSession;
+import app.db.sqlite.SqliteDatabaseProvider;
 import app.indexer.IndexReport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -31,7 +33,7 @@ class SchemaAndIgnoreTest {
 
         String dbPath = tempDir.resolve("schema.db").toString();
 
-        try (app.db.Database db = new app.db.Database(dbPath)) {
+        try (DatabaseSession db = new SqliteDatabaseProvider().open(dbPath)) {
             assertNotNull(db);
         } catch (IOException e) {
             fail("Unexpected IO error: " + e.getMessage());

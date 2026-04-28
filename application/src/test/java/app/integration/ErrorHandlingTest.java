@@ -1,7 +1,7 @@
 package app.integration;
 
 import app.TestUtils;
-import app.db.SqliteDatabaseProvider;
+import app.db.sqlite.SqliteDatabaseProvider;
 import app.service.index.IndexService;
 import app.service.search.SearchService;
 import app.indexer.IndexReport;

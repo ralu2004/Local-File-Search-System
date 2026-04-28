@@ -2,7 +2,7 @@ package app.integration;
 
 import app.TestUtils;
 import app.db.DatabaseProvider;
-import app.db.SqliteDatabaseProvider;
+import app.db.sqlite.SqliteDatabaseProvider;
 import app.model.RankedSearchResult;
 import app.service.search.SearchService;
 import org.junit.jupiter.api.Test;

@@ -1,7 +1,7 @@
 package app.integration;
 
 import app.TestUtils;
-import app.db.SqliteDatabaseProvider;
+import app.db.sqlite.SqliteDatabaseProvider;
 import app.indexer.job.BackgroundIndexer;
 import app.indexer.job.IndexingJobSnapshot;
 import app.indexer.job.IndexingJobStatus;
