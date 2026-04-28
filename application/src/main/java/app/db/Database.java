@@ -120,6 +120,11 @@ public class Database implements FileRepository, IndexRunRepository, SearchActiv
     }
 
     @Override
+    public List<IndexRun> getHistory(int limit) throws SQLException {
+        return indexRunRepository.getHistory(limit);
+    }
+
+    @Override
     public void optimizeFts() throws SQLException {
         fileRepository.optimizeFts();
     }
