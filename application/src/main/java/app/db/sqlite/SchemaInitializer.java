@@ -89,6 +89,13 @@ public final class SchemaInitializer {
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_result_open_history_file_path ON result_open_history(file_path);");
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_result_open_history_normalized_query ON result_open_history(normalized_query);");
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_result_open_history_opened_at ON result_open_history(opened_at DESC);");
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS image_features (
+                    path           TEXT PRIMARY KEY,
+                    dominant_color TEXT,
+                    FOREIGN KEY (path) REFERENCES files(path) ON DELETE CASCADE
+                );
+            """);
         }
     }
 }

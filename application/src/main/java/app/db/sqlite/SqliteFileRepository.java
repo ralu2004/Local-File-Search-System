@@ -255,6 +255,20 @@ public final class SqliteFileRepository implements FileRepository {
         }
     }
 
+    @Override
+    public void upsertImageFeature(String path, String dominantColor) throws SQLException {
+        String sql = """
+            INSERT OR REPLACE INTO image_features (path, dominant_color)
+            VALUES (?, ?)
+            """;
+        try (Connection conn = connections.open();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, path);
+            stmt.setString(2, dominantColor);
+            stmt.executeUpdate();
+        }
+    }
+
     private void upsertFilesRow(Connection conn, FileRecord record) throws SQLException {
         String sql = """
                 INSERT OR REPLACE INTO files (path, filename, extension, size_bytes, created_at, modified_at, indexed_at)

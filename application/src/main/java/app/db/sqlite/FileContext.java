@@ -6,6 +6,7 @@ import app.model.RankedSearchResult;
 import app.repository.CloseableFileMetadata;
 import app.repository.CloseableFileSearch;
 import app.repository.CloseableFileWrite;
+import app.repository.CloseableImageFeature;
 import app.search.query.Query;
 import app.search.ranking.RankingStrategy;
 
@@ -22,7 +23,7 @@ import java.util.Set;
  * to {@link SqliteFileRepository}. Created and owned by
  * {@link SqliteDatabaseSession}.
  */
-public final class FileContext implements CloseableFileSearch, CloseableFileWrite, CloseableFileMetadata {
+public final class FileContext implements CloseableFileSearch, CloseableFileWrite, CloseableFileMetadata, CloseableImageFeature {
 
     private final SqliteFileRepository fileRepository;
 
@@ -83,6 +84,11 @@ public final class FileContext implements CloseableFileSearch, CloseableFileWrit
     @Override
     public void optimizeFts() throws SQLException {
         fileRepository.optimizeFts();
+    }
+
+    @Override
+    public void upsertImageFeature(String path, String dominantColor) throws SQLException {
+        fileRepository.upsertImageFeature(path, dominantColor);
     }
 
     @Override
