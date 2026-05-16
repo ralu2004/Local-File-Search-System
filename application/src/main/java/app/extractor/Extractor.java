@@ -1,11 +1,14 @@
 package app.extractor;
 
 import app.indexer.PathFeatureExtractor;
-import app.model.FileRecord;
 import app.model.ExtractedRecord;
+import app.model.FileRecord;
 import app.search.ranking.PathFeatures;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;

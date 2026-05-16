@@ -8,7 +8,10 @@ import app.model.SearchResult;
 import app.service.index.IndexService;
 import app.service.search.SearchService;
 import picocli.CommandLine;
-import picocli.CommandLine.*;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+import picocli.CommandLine.ParentCommand;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -61,9 +64,9 @@ public class CLI implements Runnable {
             "  index C:\\projects -i target -i *.log --max-file-size 5"
     })
     static
-    /**
-     * CLI command that indexes files under a root directory.
-     */
+            /**
+             * CLI command that indexes files under a root directory.
+             */
     class IndexCommand implements Runnable {
 
         @ParentCommand
@@ -73,16 +76,16 @@ public class CLI implements Runnable {
         private Path root;
 
         @Option(names = {"-i", "--ignore"}, description = "Glob patterns to ignore")
-        private List<String> ignoreRules = List.of();
+        private final List<String> ignoreRules = List.of();
 
         @Option(names = {"--max-file-size"}, description = "Max file size in MB (default: 10)")
-        private int maxFileSizeMb = 10;
+        private final int maxFileSizeMb = 10;
 
         @Option(names = {"--preview-lines"}, description = "Number of preview lines (default: 3)")
-        private int previewLines = 3;
+        private final int previewLines = 3;
 
         @Option(names = {"--batch-size"}, description = "Number of files per DB batch write (default: 250)")
-        private int batchSize = 250;
+        private final int batchSize = 250;
 
         @Override
         public void run() {
@@ -131,9 +134,9 @@ public class CLI implements Runnable {
             "  search \"config ext:json\" --limit 10"
     })
     static
-    /**
-     * CLI command that queries indexed files.
-     */
+            /**
+             * CLI command that queries indexed files.
+             */
     class SearchCommand implements Runnable {
 
         @ParentCommand
@@ -143,7 +146,7 @@ public class CLI implements Runnable {
         private String query;
 
         @Option(names = {"--limit"}, description = "Maximum number of results (default: 50)")
-        private int limit = 50;
+        private final int limit = 50;
 
         @Override
         public void run() {

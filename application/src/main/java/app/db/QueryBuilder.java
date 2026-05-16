@@ -113,9 +113,7 @@ public class QueryBuilder {
 
         if (freeTerm != null) return freeTerm;
 
-        if (contentTerm != null) return contentTerm;
-
-        return null;
+        return contentTerm;
     }
 
     /**

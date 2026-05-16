@@ -29,7 +29,7 @@ class QueryParserSizeTest {
         assertEquals(String.valueOf(5L * 1024L * 1024L), qMb.filters().get("size"));
 
         Query qGb = parser.parse("size:1gB");
-        assertEquals(String.valueOf(1L * 1024L * 1024L * 1024L), qGb.filters().get("size"));
+        assertEquals(String.valueOf(1024L * 1024L * 1024L), qGb.filters().get("size"));
     }
 
     @Test
