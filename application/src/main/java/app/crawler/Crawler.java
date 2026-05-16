@@ -163,6 +163,6 @@ public class Crawler {
         int dotIndex = name.lastIndexOf('.');
         if (dotIndex == -1) return true;
         String extension = name.substring(dotIndex + 1).toLowerCase();
-        return !FileTypes.TEXT_EXTENSIONS.contains(extension);
+        return !FileTypes.isIndexable(extension);
     }
 }

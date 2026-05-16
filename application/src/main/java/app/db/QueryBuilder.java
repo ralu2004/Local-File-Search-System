@@ -277,6 +277,7 @@ public class QueryBuilder {
         addModifiedFilter(filters, conditions, params);
         addSizeFilter(filters, conditions, params);
         addPathFilter(filters, conditions, params);
+        addColorFilter(filters, conditions, params);
 
         if (!conditions.isEmpty()) {
             sql.append("WHERE ").append(String.join(" AND ", conditions));
@@ -329,6 +330,14 @@ public class QueryBuilder {
             conditions.add("REPLACE(f.path, char(92), '/') LIKE ?");
             params.add("%" + value.replace('\\', '/') + "%");
         }
+    }
+
+    private void addColorFilter(Map<String, String> filters, List<String> conditions, List<Object> params) {
+        if (!filters.containsKey("color")) {
+            return;
+        }
+        conditions.add("EXISTS (SELECT 1 FROM image_features imf WHERE imf.path = f.path AND imf.dominant_color = ?)");
+        params.add(filters.get("color"));
     }
 
     /**

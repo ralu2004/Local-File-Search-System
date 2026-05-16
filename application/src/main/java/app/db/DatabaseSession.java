@@ -3,7 +3,6 @@ package app.db;
 import app.repository.CloseableFileMetadata;
 import app.repository.CloseableFileSearch;
 import app.repository.CloseableFileWrite;
-import app.repository.CloseableImageFeature;
 import app.repository.CloseableIndexRuns;
 import app.repository.CloseableIndexSession;
 import app.repository.CloseableSearchActivity;
@@ -19,5 +18,5 @@ import app.repository.CloseableSearchActivity;
  */
 public interface DatabaseSession extends
         CloseableFileSearch, CloseableSearchActivity, CloseableIndexRuns,
-        CloseableFileWrite, CloseableFileMetadata, CloseableIndexSession, CloseableImageFeature {
+        CloseableFileWrite, CloseableFileMetadata, CloseableIndexSession {
 }

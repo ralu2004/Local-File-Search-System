@@ -95,11 +95,6 @@ public final class SqliteDatabaseSession implements DatabaseSession {
     }
 
     @Override
-    public void upsertImageFeature(String path, String dominantColor) throws SQLException {
-        fileContext.upsertImageFeature(path, dominantColor);
-    }
-
-    @Override
     public long startIndexing(LocalDateTime startedAt, String rootPath) throws SQLException {
         return indexRunContext.startIndexing(startedAt, rootPath);
     }

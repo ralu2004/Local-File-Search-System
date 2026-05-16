@@ -82,11 +82,16 @@ public final class SqliteFileRepository implements FileRepository {
                         INSERT OR REPLACE INTO path_features (path, depth, extension_score, directory_score, filename_score)
                         VALUES (?, ?, ?, ?, ?)
                         """;
+                String imageStmt = """
+                        INSERT OR REPLACE INTO image_features (path, dominant_color)
+                        VALUES (?, ?)
+                        """;
 
                 try (PreparedStatement fs  = conn.prepareStatement(filesStmt);
                      PreparedStatement df  = conn.prepareStatement(deleteFts);
                      PreparedStatement fts = conn.prepareStatement(ftsStmt);
-                     PreparedStatement pf  = conn.prepareStatement(featuresStmt)) {
+                     PreparedStatement pf  = conn.prepareStatement(featuresStmt);
+                     PreparedStatement img = conn.prepareStatement(imageStmt)) {
 
                     for (ExtractedRecord r : records) {
                         // files row
@@ -117,12 +122,20 @@ public final class SqliteFileRepository implements FileRepository {
                         pf.setDouble(4, r.features().directoryScore());
                         pf.setDouble(5, r.features().filenameScore());
                         pf.addBatch();
+
+                        // image_features row (only for images)
+                        if (r.dominantColor() != null) {
+                            img.setString(1, r.record().path().toString());
+                            img.setString(2, r.dominantColor());
+                            img.addBatch();
+                        }
                     }
 
                     fs.executeBatch();
                     df.executeBatch();
                     fts.executeBatch();
                     pf.executeBatch();
+                    img.executeBatch();
                 }
                 conn.commit();
             } catch (SQLException e) {
@@ -252,20 +265,6 @@ public final class SqliteFileRepository implements FileRepository {
         try (Connection conn = connections.open();
              Statement stmt = conn.createStatement()) {
             stmt.execute("INSERT INTO files_fts(files_fts) VALUES('optimize');");
-        }
-    }
-
-    @Override
-    public void upsertImageFeature(String path, String dominantColor) throws SQLException {
-        String sql = """
-            INSERT OR REPLACE INTO image_features (path, dominant_color)
-            VALUES (?, ?)
-            """;
-        try (Connection conn = connections.open();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, path);
-            stmt.setString(2, dominantColor);
-            stmt.executeUpdate();
         }
     }
 

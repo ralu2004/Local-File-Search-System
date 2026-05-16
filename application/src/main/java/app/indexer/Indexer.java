@@ -12,6 +12,7 @@ import app.repository.IndexRunRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.Duration;
@@ -174,7 +175,7 @@ public class Indexer {
         } catch (FileTooLargeException e) {
             log.debug("Skipping large file: {}", e.getMessage());
             return IndexResult.SKIPPED;
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | IOException e) {
             log.warn("Failed to index file {}: {}", record.path(), e.getMessage());
             return IndexResult.FAILED;
         }

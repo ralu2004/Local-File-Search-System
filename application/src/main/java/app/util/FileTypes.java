@@ -14,5 +14,11 @@ public final class FileTypes {
             "bat", "sql", "gradle", "kt", "rs", "go", "swift"
     );
 
-    private FileTypes() {}
+    public static final Set<String> IMAGE_EXTENSIONS = Set.of(
+            "jpg", "jpeg", "png", "gif", "bmp", "webp"
+    );
+
+    public static boolean isIndexable(String extension) {
+        return TEXT_EXTENSIONS.contains(extension) || IMAGE_EXTENSIONS.contains(extension);
+    }
 }

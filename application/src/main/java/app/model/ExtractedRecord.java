@@ -3,9 +3,16 @@ package app.model;
 import app.search.ranking.PathFeatures;
 
 /**
- * File metadata paired with extracted full content, preview, and path features.
+ * File metadata paired with extracted full content, preview, path features,
+ * and an optional dominant color for image files.
  * <p>
- * {@link PathFeatures} are computed at index time by {@link app.indexer.PathFeatureExtractor}
- * and persisted to the {@code path_features} table for query-time ranking.
+ * {@code dominantColor} is non-null only for image files processed by
+ * {@link app.extractor.strategy.ImageFileStrategy}.
  */
-public record ExtractedRecord(FileRecord record, String content, String preview, PathFeatures features) {}
+public record ExtractedRecord(
+        FileRecord record,
+        String content,
+        String preview,
+        PathFeatures features,
+        String dominantColor
+) {}
