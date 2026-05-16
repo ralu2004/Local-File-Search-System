@@ -1,0 +1,16 @@
+#!/bin/sh
+# Pre-commit hook: runs checkstyle before each commit.
+# Install: Copy-Item hooks\pre-commit .git\hooks\pre-commit
+
+cd application || exit 1
+
+echo "Running pre-commit checks..."
+
+mvn checkstyle:check -q
+if [ $? -ne 0 ]; then
+  echo "Checkstyle failed. Fix violations before committing."
+  exit 1
+fi
+
+echo "Pre-commit checks passed."
+exit 0

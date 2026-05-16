@@ -340,3 +340,11 @@ The persistence layer underwent two refactors during Iteration 2:
 ## Architecture
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the C4 model of the system design (delivered as part of an earlier iteration). The "Design notes" section above documents iteration-2 additions and refactors not covered by the original architecture document.
+
+## Development
+
+### Pre-commit hook
+To enable the pre-commit hook (runs checkstyle before each commit):
+```bash
+cp hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+```
