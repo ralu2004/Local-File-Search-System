@@ -9,6 +9,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Added
 - Pre-commit hook for checkstyle enforcement
 - CHANGELOG.md to track iteration 3 progress
+- Multimodal search: image indexing with dominant color extraction (Strategy Pattern)
+- color: query filter for searching images by dominant color
 
 ## [2.0.0] - 2026-04-09
 
