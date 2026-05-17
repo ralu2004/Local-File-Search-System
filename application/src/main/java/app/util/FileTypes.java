@@ -3,7 +3,8 @@ package app.util;
 import java.util.Set;
 
 /**
- * Shared allow-list of text-like file extensions considered indexable.
+ * Shared allow-lists of indexable file extensions.
+ * Covers both text files and image files supported by the indexing pipeline.
  */
 public final class FileTypes {
 
