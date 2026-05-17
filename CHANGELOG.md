@@ -13,6 +13,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - color: query filter for searching images by dominant color
 - Producer-Consumer indexing: parallel file extraction via reader thread pool with dedicated IndexWriter consuming results and committing to SQLite
 - IndexWriter: extracted as standalone consumer class responsible for batch writes and writer thread lifecycle
+- Tests: parallel indexing correctness and image color filter integration tests
 
 ## [2.0.0] - 2026-04-09
 
