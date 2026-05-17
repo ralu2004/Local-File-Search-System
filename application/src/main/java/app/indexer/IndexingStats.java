@@ -1,11 +1,13 @@
 package app.indexer;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
- * Mutable counters used while an indexing run is in progress.
+ * Thread safe counters used while an indexing run is in progress.
  */
 class IndexingStats {
-    int totalFiles;
-    int indexed;
-    int skipped;
-    int failed;
+    final AtomicInteger totalFiles = new AtomicInteger();
+    final AtomicInteger indexed    = new AtomicInteger();
+    final AtomicInteger skipped    = new AtomicInteger();
+    final AtomicInteger failed     = new AtomicInteger();
 }
