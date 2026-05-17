@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 
 import { indexApi, searchApi } from '../api/client'
-import type { IndexRunRow, RankedSearchResult, SortMode } from '../types'
+import type { IndexRunRow, RankedSearchResult, SearchResponse, SortMode, Widget } from '../types'
 import { formatElapsed, formatIsoDateTime } from '../utils/format'
 import { buildRequestQuery, normalizeRankedResults, stripSortFilter } from '../utils/normalize'
 import ResultCard from './ResultCard'
@@ -15,6 +15,18 @@ function isStringList(payload: unknown): payload is string[] {
   return Array.isArray(payload) && payload.every((item) => typeof item === 'string')
 }
 
+function isSearchResponse(payload: unknown): payload is SearchResponse {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'results' in payload &&
+    'widgets' in payload &&
+    Array.isArray((payload as SearchResponse).results)
+  )
+}
+
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'])
+
 export default function SearchPanel() {
   const pageSize = 5
   const [indexHistory, setIndexHistory] = useState<IndexRunRow[]>([])
@@ -22,6 +34,8 @@ export default function SearchPanel() {
   const [sortMode, setSortMode] = useState<SortMode>('default')
   const [limitInput, setLimitInput] = useState('20')
   const [searchResults, setSearchResults] = useState<RankedSearchResult[]>([])
+  const [activeWidgets, setActiveWidgets] = useState<Widget[]>([])
+  const [galleryMode, setGalleryMode] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [searchMessage, setSearchMessage] = useState('')
   const [activeSearchQuery, setActiveSearchQuery] = useState('')
@@ -52,6 +66,11 @@ export default function SearchPanel() {
     const start = (currentPage - 1) * pageSize
     return searchResults.slice(start, start + pageSize)
   }, [currentPage, searchResults])
+
+  const imageResults = useMemo(
+    () => searchResults.filter((r) => IMAGE_EXTENSIONS.has(r.result.extension?.toLowerCase() ?? '')),
+    [searchResults],
+  )
 
   function clearPendingSearchDebounce() {
     if (searchDebounceTimerRef.current !== null) {
@@ -96,6 +115,8 @@ export default function SearchPanel() {
         setActiveSearchQuery('')
         setOpenedResultPaths(new Set())
         setSearchMessage('')
+        setActiveWidgets([])
+        setGalleryMode(false)
         return
       }
 
@@ -104,7 +125,6 @@ export default function SearchPanel() {
       searchAbortRef.current = controller
       setSearchMessage('')
       setOpenEventMessage('')
-      // Treat each executed search as a fresh result session.
       setOpenedResultPaths(new Set())
 
       try {
@@ -125,10 +145,12 @@ export default function SearchPanel() {
           return
         }
 
-        const results = normalizeRankedResults(payload)
+        const results = normalizeRankedResults(isSearchResponse(payload) ? payload.results : payload)
+        setActiveWidgets(isSearchResponse(payload) ? (payload.widgets ?? []) : [])
         setActiveSearchQuery(cleanQuery)
         setSearchResults(results)
         setCurrentPage(1)
+        setGalleryMode(false)
         setSearchMessage(results.length === 0 ? 'No results.' : '')
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
@@ -284,6 +306,31 @@ export default function SearchPanel() {
     void doSearch(query)
   }
 
+  function handleWidgetAction(widgetId: string) {
+    if (widgetId === 'gallery') {
+      setGalleryMode((prev) => !prev)
+    }
+
+    if (widgetId === 'export-list') {
+      const lines = searchResults.map((r) => r.result.path).join('\n')
+      const blob = new Blob([lines], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'search-results.txt'
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+
+    if (widgetId === 'open-folder') {
+      const firstPath = searchResults[0]?.result.path
+      if (!firstPath) return
+      const lastSep = Math.max(firstPath.lastIndexOf('/'), firstPath.lastIndexOf('\\'))
+      const folder = lastSep >= 0 ? firstPath.substring(0, lastSep) : firstPath
+      void navigator.clipboard.writeText(folder)
+    }
+  }
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -325,8 +372,7 @@ export default function SearchPanel() {
             <code>ext:java</code> - files with that extension (also <code>extension:md</code>).
           </li>
           <li>
-            <code>modified:2024-01-15</code> - modified after this date/time (use the same format as stored in DB,
-            e.g. ISO-like <code>2024-01-15T10:00:00</code> if needed).
+            <code>modified:2024-01-15</code> - modified after this date/time.
           </li>
           <li>
             <code>size:1048576</code> - file larger than this many <strong>bytes</strong> (default unit).
@@ -335,7 +381,10 @@ export default function SearchPanel() {
             <code>size:10kb</code>, <code>size:5mb</code>, <code>size:1gb</code> - size filter with units.
           </li>
           <li>
-            Examples: <code>readme ext:md</code>, <code>config ext:json</code>, <code>todo size:500</code>.
+            <code>color:red</code> - images with that dominant color.
+          </li>
+          <li>
+            Examples: <code>readme ext:md</code>, <code>config ext:json</code>, <code>color:blue</code>.
           </li>
         </ul>
       </details>
@@ -355,7 +404,7 @@ export default function SearchPanel() {
             onChange={(event) => setQuery(event.target.value)}
             onFocus={handleSearchInputFocus}
             onBlur={handleSearchInputBlur}
-            placeholder='Try: "readme", "ext:java", "config ext:json"'
+            placeholder='Try: "readme", "ext:java", "color:red"'
           />
           <SuggestionBox
             suggestions={searchSuggestions}
@@ -411,21 +460,60 @@ export default function SearchPanel() {
       {searchMessage && <p className="message">{searchMessage}</p>}
       {openEventMessage && <p className="message">{openEventMessage}</p>}
 
-      <div className="results">
-        {pagedResults.map((item, index) => (
-          <ResultCard
-            key={item.result.path}
-            item={item}
-            index={(currentPage - 1) * pageSize + index}
-            activeQuery={activeSearchQuery}
-            sortMode={sortMode}
-            isOpened={openedResultPaths.has(item.result.path)}
-            onMarkOpened={(path, position) => void trackOpenEvent(path, position)}
-          />
-        ))}
-      </div>
+      {activeWidgets.length > 0 && (
+        <div className="active-widgets" role="region" aria-label="Contextual actions">
+          {activeWidgets.map((widget) =>
+            widget.type === 'action' ? (
+              <button
+                key={widget.id}
+                type="button"
+                className={`widget-button widget-action${widget.id === 'gallery' && galleryMode ? ' widget-active' : ''}`}
+                onClick={() => handleWidgetAction(widget.id)}
+              >
+                {widget.label}
+              </button>
+            ) : (
+              <span key={widget.id} className="widget-marker">
+                {widget.label}
+              </span>
+            ),
+          )}
+        </div>
+      )}
 
-      {searchResults.length > pageSize && (
+      {galleryMode ? (
+        <div className="gallery-grid" role="list" aria-label="Image gallery">
+          {imageResults.map((item) => (
+            <div key={item.result.path} className="gallery-item" role="listitem" title={item.result.filename}>
+              <img
+                src={`localfile://${item.result.path.replace(/^file:\/\/\//, '').replace(':', '%3A')}`}
+                alt={item.result.filename}
+                className="gallery-image"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none'
+                }}
+              />
+              <span className="gallery-label">{item.result.filename}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="results">
+          {pagedResults.map((item, index) => (
+            <ResultCard
+              key={item.result.path}
+              item={item}
+              index={(currentPage - 1) * pageSize + index}
+              activeQuery={activeSearchQuery}
+              sortMode={sortMode}
+              isOpened={openedResultPaths.has(item.result.path)}
+              onMarkOpened={(path, position) => void trackOpenEvent(path, position)}
+            />
+          ))}
+        </div>
+      )}
+
+      {!galleryMode && searchResults.length > pageSize && (
         <div className="pagination" aria-label="Search results pages">
           <button type="button" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage === 1}>
             Previous
