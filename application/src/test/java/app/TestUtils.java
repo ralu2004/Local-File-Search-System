@@ -90,5 +90,25 @@ public final class TestUtils {
                 "Expected result to contain path: " + expectedPath
         );
     }
+
+    public static long imageFeatureCount(String dbPath) throws SQLException {
+        String sql = "SELECT COUNT(*) AS c FROM image_features";
+        try (Connection conn = DriverManager.getConnection(jdbcUrl(dbPath));
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getLong("c") : 0;
+        }
+    }
+
+    public static String dominantColor(String dbPath, Path filePath) throws SQLException {
+        String sql = "SELECT dominant_color FROM image_features WHERE path = ?";
+        try (Connection conn = DriverManager.getConnection(jdbcUrl(dbPath));
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, filePath.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString("dominant_color") : null;
+            }
+        }
+    }
 }
 
