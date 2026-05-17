@@ -11,6 +11,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - CHANGELOG.md to track iteration 3 progress
 - Multimodal search: image indexing with dominant color extraction (Strategy Pattern)
 - color: query filter for searching images by dominant color
+- Producer-Consumer indexing: parallel file extraction via reader thread pool with dedicated IndexWriter consuming results and committing to SQLite
+- IndexWriter: extracted as standalone consumer class responsible for batch writes and writer thread lifecycle
 
 ## [2.0.0] - 2026-04-09
 
