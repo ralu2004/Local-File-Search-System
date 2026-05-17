@@ -6,17 +6,5 @@ application/.searchengine/
 *.log
 application/target/
 frontend/node_modules/
-frontend/package-lock.json
-frontend/package.json
 frontend/dist-electron/
-frontend/electron-builder.json5
-frontend/electron/
 frontend/src/vite-env.d.ts
-frontend/tsconfig.json
-frontend/tsconfig.node.json
-frontend/vite.config.ts
-frontend/public/
-frontend/src/main.tsx
-frontend/src/types.ts
-frontend/.eslintrc.cjs
-frontend/index.html
