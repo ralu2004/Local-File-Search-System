@@ -14,6 +14,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - Producer-Consumer indexing: parallel file extraction via reader thread pool with dedicated IndexWriter consuming results and committing to SQLite
 - IndexWriter: extracted as standalone consumer class responsible for batch writes and writer thread lifecycle
 - Tests: parallel indexing correctness and image color filter integration tests
+- Context-aware widgets: gallery view, export file list, copy folder path, and informational markers
+- Secure localfile:// Electron protocol for loading local images in gallery view
 
 ## [2.0.0] - 2026-04-09
 
