@@ -90,11 +90,7 @@ public class WidgetActivator {
 
     private static boolean allInSameDirectory(List<RankedSearchResult> results) {
         return results.stream()
-                .map(r -> {
-                    String path = r.result().path().toString();
-                    int lastSep = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-                    return lastSep >= 0 ? path.substring(0, lastSep) : "";
-                })
+                .map(r -> r.result().path().getParent())
                 .distinct()
                 .count() == 1;
     }

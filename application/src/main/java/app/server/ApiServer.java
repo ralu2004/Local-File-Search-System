@@ -6,7 +6,6 @@ import app.indexer.job.BackgroundIndexer;
 import app.indexer.job.IndexingJobSnapshot;
 import app.model.IndexRun;
 import app.model.RankedSearchResult;
-import app.model.SearchResponse;
 import app.search.widget.Widget;
 import app.search.widget.WidgetActivator;
 import app.service.index.HistoryService;
@@ -263,6 +262,15 @@ public class ApiServer implements AutoCloseable {
             String query,
             String filePath,
             Integer resultPosition
+    ) {}
+
+    /**
+     * Search API response payload containing ranked results
+     * and context-aware widgets activated by the result set.
+     */
+    public record SearchResponse(
+            List<RankedSearchResult> results,
+            List<Widget> widgets
     ) {}
 
     /**
