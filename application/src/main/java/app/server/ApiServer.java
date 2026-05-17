@@ -5,6 +5,10 @@ import app.db.sqlite.SqliteDatabaseProvider;
 import app.indexer.job.BackgroundIndexer;
 import app.indexer.job.IndexingJobSnapshot;
 import app.model.IndexRun;
+import app.model.RankedSearchResult;
+import app.model.SearchResponse;
+import app.search.widget.Widget;
+import app.search.widget.WidgetActivator;
 import app.service.index.HistoryService;
 import app.service.index.IndexService;
 import app.service.search.SearchService;
@@ -128,7 +132,9 @@ public class ApiServer implements AutoCloseable {
             String dbPath = ctx.queryParam("db");
             int limit = parsePositiveInt(ctx.queryParam("limit"), 50);
             try {
-                writeJson(ctx, searchService.search(dbPath, query, limit));
+                List<RankedSearchResult> results = searchService.search(dbPath, query, limit);
+                List<Widget> widgets = WidgetActivator.activate(query, results);
+                writeJson(ctx, new SearchResponse(results, widgets));
             } catch (SQLException | IOException e) {
                 log.error("Search failed", e);
                 writeJson(ctx.status(500), new ErrorResponse("SEARCH_FAILED", "Search failed."));
