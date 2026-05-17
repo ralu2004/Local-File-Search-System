@@ -78,8 +78,9 @@ class ApiBehaviorRankingIntegrationTest {
             assertEquals(200, behaviorResponse.statusCode());
 
             JsonNode payload = JSON.readTree(behaviorResponse.body());
-            assertTrue(payload.isArray() && payload.size() > 0, "Expected non-empty ranked payload");
-            JsonNode first = payload.get(0);
+            JsonNode results = payload.isArray() ? payload : payload.path("results");
+            assertTrue(results.isArray() && results.size() > 0, "Expected non-empty ranked payload");
+            JsonNode first = results.get(0);
             String firstPath = normalizePathText(first.path("result").path("path").asText());
             assertEquals(opened.toAbsolutePath().normalize().toString(), firstPath);
             assertTrue(first.path("insights").isArray(), "Expected insights array in behavior payload");
