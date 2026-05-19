@@ -16,6 +16,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - Tests: parallel indexing correctness and image color filter integration tests
 - Context-aware widgets: gallery view, export file list, copy folder path, and informational markers
 - Secure localfile:// Electron protocol for loading local images in gallery view
+- Tests: widget activation integration tests for gallery, export, folder path, and content marker
+- Query Pre-Processor Pipeline: SanitizationDecorator, SynonymDecorator, and LogicDecorator chain operating on parsed Query objects after QueryParser
+
+### Changed
+- SearchResponse moved from app.model to ApiServer as an API transport record
+- QueryBuilder.buildFtsMatchString simplified — FTS normalization moved to LogicDecorator
+- FileTypes Javadoc updated to reflect image extensions and isIndexable
 
 ## [2.0.0] - 2026-04-09
 
