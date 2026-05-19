@@ -6,7 +6,7 @@ import { formatElapsed, formatIsoDateTime, phaseLabel } from '../utils/format'
 import StatusBadge from './StatusBadge'
 
 export default function IndexPanel() {
-  const [root, setRoot] = useState('D:\\UTCN\\An3\\Sem2\\SD\\Local-File-Search-System')
+  const [root, setRoot] = useState('')
   const [ignoreRules, setIgnoreRules] = useState('*.log')
   const [maxFileSizeMb, setMaxFileSizeMb] = useState(10)
   const [previewLines, setPreviewLines] = useState(3)
@@ -101,7 +101,11 @@ export default function IndexPanel() {
       <form className="form-grid" onSubmit={startIndexing}>
         <label htmlFor="index-root">
           Root path
-          <input id="index-root" value={root} onChange={(event) => setRoot(event.target.value)} />
+          <input id="index-root" 
+            value={root} 
+            onChange={(event) => setRoot(event.target.value)} 
+            placeholder="e.g. /home/user/documents or C:\Users\user\Documents"
+          />
         </label>
         <label htmlFor="index-ignore-rules">
           Ignore rules (comma-separated)
