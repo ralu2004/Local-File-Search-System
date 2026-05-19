@@ -106,7 +106,11 @@ public class Indexer {
         try {
             crawler.crawl(record -> submitExtractionTask(record, readers, queue, paths, storedModifiedByPath, stats));
             readers.shutdown();
-            readers.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+            boolean finished = readers.awaitTermination(30, TimeUnit.MINUTES);
+            if (!finished) {
+                readers.shutdownNow();
+                log.warn("Reader pool did not finish within timeout; files may be missing");
+            }
             queue.put(POISON_PILL);
             writerThread.join();
         } catch (InterruptedException e) {
