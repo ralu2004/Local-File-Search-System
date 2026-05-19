@@ -132,7 +132,7 @@ public class ApiServer implements AutoCloseable {
             int limit = parsePositiveInt(ctx.queryParam("limit"), 50);
             try {
                 List<RankedSearchResult> results = searchService.search(dbPath, query, limit);
-                List<Widget> widgets = WidgetActivator.activate(query, results);
+                List<Widget> widgets = WidgetActivator.withDefaultRules().activate(query, results);
                 writeJson(ctx, new SearchResponse(results, widgets));
             } catch (SQLException | IOException e) {
                 log.error("Search failed", e);

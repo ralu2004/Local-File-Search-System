@@ -1,101 +1,90 @@
 package app.search.widget;
 
 import app.model.RankedSearchResult;
-import app.util.FileTypes;
+import app.search.widget.WidgetActivationRules.AlwaysPresentRule;
+import app.search.widget.WidgetActivationRules.ContentQualifierRule;
+import app.search.widget.WidgetActivationRules.MajorityDiffRule;
+import app.search.widget.WidgetActivationRules.MajorityImageRule;
+import app.search.widget.WidgetActivationRules.MajorityLogRule;
+import app.search.widget.WidgetActivationRules.MajorityMarkdownRule;
+import app.search.widget.WidgetActivationRules.SameDirectoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
- * Factory that analyzes a search result set and activates relevant context-aware widgets.
+ * Factory that produces the list of context-aware widgets relevant for a
+ * given search result set.
  * <p>
- * Uses rules based on file extension distribution, path patterns, and query content
- * to decide which widgets are relevant for the current result set.
+ * The factory holds an ordered registry of {@link WidgetActivationRule}
+ * strategies. For each search invocation it iterates the rules and collects
+ * those that return a non-empty result. Rules are independent of one another
+ * and evaluated in registration order, so widget strip ordering is predictable.
+ * <p>
+ * New widget types are added by:
+ * <ol>
+ *   <li>Implementing {@link WidgetActivationRule} (in {@link WidgetActivationRules}).</li>
+ *   <li>Registering an instance in {@link #defaultRules()}.</li>
+ * </ol>
+ * No existing rule or caller needs to change.
  */
 public class WidgetActivator {
 
-    private static final double MAJORITY_THRESHOLD = 0.5;
-
-    private WidgetActivator() {}
+    private final List<WidgetActivationRule> rules;
 
     /**
-     * Analyzes the query and result set and returns the list of widgets to activate.
+     * Creates an activator with a custom rule set. Useful for testing and
+     * for constructing activators with a subset or superset of rules.
+     *
+     * @param rules the ordered list of activation rules to evaluate
+     */
+    public WidgetActivator(List<WidgetActivationRule> rules) {
+        this.rules = List.copyOf(rules);
+    }
+
+    /**
+     * Creates an activator with the standard production rule set.
+     * Equivalent to {@code new WidgetActivator(WidgetActivator.defaultRules())}.
+     */
+    public static WidgetActivator withDefaultRules() {
+        return new WidgetActivator(defaultRules());
+    }
+
+    /**
+     * Returns the default ordered list of production rules.
+     * <p>
+     * {@link AlwaysPresentRule} is registered last so the export widget
+     * always appears at the end of the widget strip.
+     */
+    public static List<WidgetActivationRule> defaultRules() {
+        List<WidgetActivationRule> rules = new ArrayList<>();
+        rules.add(new MajorityImageRule());
+        rules.add(new MajorityLogRule());
+        rules.add(new MajorityMarkdownRule());
+        rules.add(new MajorityDiffRule());
+        rules.add(new SameDirectoryRule());
+        rules.add(new ContentQualifierRule());
+        rules.add(new AlwaysPresentRule());
+        return rules;
+    }
+
+    /**
+     * Evaluates all registered rules and returns the widgets whose conditions
+     * are met for the current query and result set.
      *
      * @param query   the raw user query
      * @param results the current search result set
-     * @return list of activated widgets, empty if none are relevant
+     * @return list of activated widgets, empty if results are null or empty
      */
-    public static List<Widget> activate(String query, List<RankedSearchResult> results) {
-        List<Widget> widgets = new ArrayList<>();
+    public List<Widget> activate(String query, List<RankedSearchResult> results) {
         if (results == null || results.isEmpty()) {
-            return widgets;
+            return List.of();
         }
-
-        Map<String, Long> extensionCounts = buildExtensionCounts(results);
-        long total = results.size();
-
-        if (isMajorityImages(extensionCounts, total)) {
-            widgets.add(new Widget("gallery", "View as Gallery", "action"));
+        List<Widget> widgets = new ArrayList<>();
+        for (WidgetActivationRule rule : rules) {
+            rule.evaluate(query, results).ifPresent(widgets::add);
         }
-        if (isMajorityLogs(extensionCounts, total)) {
-            widgets.add(new Widget("analyze-logs", "Analyze Logs", "marker"));
-        }
-        if (isMajorityMarkdown(extensionCounts, total)) {
-            widgets.add(new Widget("markdown-preview", "Markdown Results", "marker"));
-        }
-        if (isMajorityDiffs(extensionCounts, total)) {
-            widgets.add(new Widget("diff-view", "Diff Results", "marker"));
-        }
-        if (allInSameDirectory(results)) {
-            widgets.add(new Widget("open-folder", "Copy Folder Path", "action"));
-        }
-        if (hasContentQualifier(query)) {
-            widgets.add(new Widget("search-content", "Content Search Active", "marker"));
-        }
-
-        widgets.add(new Widget("export-list", "Export File List", "action"));
-
         return widgets;
     }
 
-    private static Map<String, Long> buildExtensionCounts(List<RankedSearchResult> results) {
-        return results.stream()
-                .map(r -> r.result().extension() == null ? "" : r.result().extension().toLowerCase())
-                .collect(Collectors.groupingBy(ext -> ext, Collectors.counting()));
-    }
-
-    private static boolean isMajorityImages(Map<String, Long> counts, long total) {
-        long imageCount = counts.entrySet().stream()
-                .filter(e -> FileTypes.IMAGE_EXTENSIONS.contains(e.getKey()))
-                .mapToLong(Map.Entry::getValue)
-                .sum();
-        return (double) imageCount / total >= MAJORITY_THRESHOLD;
-    }
-
-    private static boolean isMajorityLogs(Map<String, Long> counts, long total) {
-        return (double) counts.getOrDefault("log", 0L) / total >= MAJORITY_THRESHOLD;
-    }
-
-    private static boolean isMajorityMarkdown(Map<String, Long> counts, long total) {
-        long mdCount = counts.getOrDefault("md", 0L) + counts.getOrDefault("markdown", 0L);
-        return (double) mdCount / total >= MAJORITY_THRESHOLD;
-    }
-
-    private static boolean isMajorityDiffs(Map<String, Long> counts, long total) {
-        long diffCount = counts.getOrDefault("patch", 0L) + counts.getOrDefault("diff", 0L);
-        return (double) diffCount / total >= MAJORITY_THRESHOLD;
-    }
-
-    private static boolean allInSameDirectory(List<RankedSearchResult> results) {
-        return results.stream()
-                .map(r -> r.result().path().getParent())
-                .distinct()
-                .count() == 1;
-    }
-
-    private static boolean hasContentQualifier(String query) {
-        return query != null && query.contains("content:");
-    }
 }
