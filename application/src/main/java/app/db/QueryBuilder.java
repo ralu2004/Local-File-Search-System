@@ -22,12 +22,6 @@ import java.util.Map;
  */
 public class QueryBuilder {
 
-    /**
-     * Tokenized piece used while rebuilding FTS expressions:
-     * either a text token or a quote marker, plus quote-context metadata.
-     */
-    private record Part(String text, boolean isQuoteMarker, boolean inQuotes) {}
-
     private static final RankingStrategy DEFAULT_STRATEGY = new StaticRankingStrategy();
 
     private final RankingStrategy rankingStrategy;
