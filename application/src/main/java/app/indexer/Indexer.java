@@ -75,7 +75,7 @@ public class Indexer {
         Map<Path, LocalDateTime> storedModifiedByPath = preloadStoredModifiedByPath();
 
         runPipeline(stats, paths, storedModifiedByPath);
-        int deleted = finalize(stats, paths);
+        int deleted = finalizeRun(stats, paths);
 
         IndexReport report = new IndexReport(
                 stats.totalFiles.get(), stats.indexed.get(),
@@ -165,7 +165,7 @@ public class Indexer {
     /**
      * Deletes stale entries and optimizes FTS after the pipeline completes.
      */
-    private int finalize(IndexingStats stats, Set<Path> paths) {
+    private int finalizeRun(IndexingStats stats, Set<Path> paths) {
         if (liveProgress != null) {
             liveProgress.setPhase("finalizing");
             publishLive(stats, 0);

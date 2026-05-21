@@ -17,7 +17,6 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Executes search queries against a {@link app.repository.FileSearchRepository}.
@@ -50,11 +49,6 @@ public class SearchEngine {
                 new SynonymDecorator(
                         new LogicDecorator(
                                 new IdentityDecorator()
-                        ),
-                        Map.of(
-                                "img", List.of("img", "image", "photo", "picture"),
-                                "doc", List.of("doc", "document", "docx", "pdf"),
-                                "vid", List.of("vid", "video", "mp4", "mov")
                         )
                 )
         );
