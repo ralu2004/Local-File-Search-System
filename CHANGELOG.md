@@ -18,11 +18,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - Secure localfile:// Electron protocol for loading local images in gallery view
 - Tests: widget activation integration tests for gallery, export, folder path, and content marker
 - Query Pre-Processor Pipeline: SanitizationDecorator, SynonymDecorator, and LogicDecorator chain operating on parsed Query objects after QueryParser
+- Image thumbnail preview in result cards using the localfile:// protocol
+- Synonym expansion loaded from `synonyms.properties` resource file (configurable without recompiling)
 
 ### Changed
 - SearchResponse moved from app.model to ApiServer as an API transport record
 - QueryBuilder.buildFtsMatchString simplified — FTS normalization moved to LogicDecorator
 - FileTypes Javadoc updated to reflect image extensions and isIndexable
+- `SynonymDecorator` is now self-contained — loads synonyms internally instead of receiving them from `SearchEngine`
+- `Extractor` accepts a custom strategy list via new constructor, following the open/closed principle
+- CLI search help text updated with missing `color:`, `path:`, and `content:` filter descriptions
+
+### Fixed
+- SQLite PRAGMA failures now logged at WARN level instead of being silently swallowed
+- UDF smoke-test SELECT now runs only once per JVM instead of on every connection open
+- Image preview field no longer stores the dominant color string — thumbnail rendered in frontend instead
+- `localfile://` path construction unified across gallery and result card thumbnails
 
 ## [2.0.0] - 2026-04-09
 
