@@ -74,6 +74,7 @@ java -jar application/target/application-1.0-SNAPSHOT.jar search "<query>"
 | `modified:2025-01-01` | Files modified after date |
 | `size:1048576` | Files larger than size in bytes |
 | `size:10kb`, `size:5mb`, `size:1gb` | Size filter with units (case-insensitive) |
+| `color:red` | Filter images by dominant color (red, blue, green, yellow, ...) |
 | `sort:date`, `sort:alpha`, `sort:balanced`, `sort:behavior` | Choose ranking strategy |
 | `config ext:json` | Combined full-text and metadata |
 
@@ -87,6 +88,7 @@ java -jar ... search "getting started"
 java -jar ... search "ext:java"
 java -jar ... search "README.md"
 java -jar ... search "size:10mb"
+java -jar ... search "color:red"
 java -jar ... search "config ext:json" --limit 10
 java -jar ... search "auth path:src/main sort:date"
 ```
@@ -115,7 +117,9 @@ npm run dev
 
 The dev server prints the URL it's listening on. The frontend sends requests to `http://localhost:7070/api/*`.
 
-The UI exposes both indexing and search workflows: configure a root directory and ignore rules, run indexing with live progress, then search with sort-mode selection (default, balanced, date, alphabetical, personalized). Results show file metadata, content previews with query-term highlighting, and a "Mark as opened" action that feeds personalized ranking. When the personalized sort is active, results display ranking insights describing why each result scored where it did.
+The UI exposes both indexing and search workflows: configure a root directory and ignore rules, run indexing with live progress, then search with sort-mode selection (default, balanced, date, alphabetical, personalized). Results show file metadata, content previews with query-term highlighting, and a "Mark as opened" action that feeds personalized ranking. Image results display an inline thumbnail instead of a text preview. When the personalized sort is active, results display ranking insights describing why each result scored where it did.
+
+Context-aware widgets appear below the search bar when results match certain patterns: a **View as Gallery** action activates when the majority of results are images (displaying them in a grid via a secure `localfile://` Electron protocol), **Analyze Logs** when results are predominantly log files, **Copy Folder Path** when all results share a directory, and **Export File List** is always available to save result paths to a text file.
 
 ---
 
@@ -152,13 +156,17 @@ Current suite covers:
 
 - **Query parsing**: full-text, filename, metadata, mixed input, and `size` unit parsing (`bytes`, `kb`, `mb`, `gb`)
 - **Search behavior**: recursive traversal, single-word and multi-word full-text search
-- **Metadata filters**: `ext`, `modified`, `size` (including unit forms), `path`, `content`
+- **Metadata filters**: `ext`, `modified`, `size` (including unit forms), `path`, `content`, `color`
+- **Query decorator pipeline**: sanitization (stripping, whitespace normalisation), synonym expansion (known shorthands, filter transparency, case insensitivity), FTS5 logic (wildcard placement, operator passthrough, phrase preservation), and full chain composition
 - **Runtime indexing options**: `ignoreRules`, `maxFileSizeMb`, `previewLines`, `batchSize`
 - **Indexing lifecycle**: background progress snapshot and final report
+- **Parallel indexing**: Producer-Consumer correctness — all files indexed, no duplicates, writer thread isolation
+- **Image indexing**: dominant color extraction, `color:` filter integration
 - **Resilience**: database failure propagation, unreadable files, and symlink-loop environments (platform-dependent skip)
 - **Incremental indexing**: unchanged-file skip, modified-file update, and deleted-file cleanup
 - **Ranking strategies**: resolver mapping, swappable strategy selection, behavior score formula (frequency, recency, position lift), ranking insight formatting (relative time, lift threshold)
 - **Search activity**: history recording, suggestion prefix matching, recent-query ordering
+- **Widget activation**: each rule tested in isolation (threshold boundaries, extension grouping, null handling); factory-level tests for ordering, custom rule injection, and empty/null guards
 
 Typical output should report all tests passing, with one optional skipped test on platforms that cannot create symlinks.
 
@@ -175,6 +183,32 @@ The default ranking favors content relevance and path features. The personalized
 Files split into two buckets: those with any open history sort first by behavior score, those without sort after by full-text relevance. When the personalized sort is active, the UI shows insights under each result explaining the ranking ("you've opened this 5 times for similar searches", "last opened 2 hours ago", "you often find this past higher-ranked results").
 
 The UI also surfaces query suggestions based on prefix matches against search history, and recent unique queries — both fed by the same activity tracking that drives personalized ranking.
+
+---
+## Relevant features
+
+### Multimodal search
+
+The `Extractor` dispatches to a registered list of `FileProcessingStrategy` implementations. `TextFileStrategy` handles text files as before; `ImageFileStrategy` extracts the dominant color from images using HSB hue bucketing. A custom `Extractor(List<FileProcessingStrategy>)` constructor allows future file types (PDF, audio) to be added without modifying `Extractor` itself.
+
+### Query pre-processor pipeline
+
+After `QueryParser` produces a `Query` object, a `QueryDecorator` chain transforms it before execution: `SanitizationDecorator` strips FTS5-breaking characters, `SynonymDecorator` expands shorthand terms using a configurable `synonyms.properties` file, and `LogicDecorator` appends FTS5 prefix wildcards to the last eligible token. Decorators are interchangeable wrappers — each is independently testable and the chain is composable without modifying the core search logic.
+
+### Widget factory
+
+`WidgetActivator` holds an ordered registry of `WidgetActivationRule` strategies. Each rule encapsulates one activation condition and returns an `Optional<Widget>`. The factory iterates the registry, collects non-empty results, and returns the widget strip in registration order. Adding a new widget type requires implementing one interface and registering one instance — no existing code changes.
+
+### Producer-Consumer indexing
+
+`Indexer` runs a bounded `BlockingQueue` between a reader thread pool (one task per file) and a single `IndexWriter` consumer thread. The queue capacity is capped at `min(poolSize * 4, 256)` to bound heap pressure. A 30-minute timeout on reader pool shutdown prevents indefinite hangs on stuck extractors.
+
+### Known limitations
+
+- The indexer targets text-like and image files; other binary formats (PDF, audio, video) are skipped during content extraction.
+- CLI sorting is expressed inside the query (`sort:...`), not via a separate `--sort` option.
+- Symlink-related behavior may vary by OS permissions (the test suite already marks this as optional on unsupported environments).
+- Synonym expansion is applied at query time. Matched synonyms are not currently highlighted in result previews — only the original typed terms are highlighted.
 
 ---
 
@@ -328,12 +362,6 @@ The persistence layer underwent two refactors during Iteration 2:
 ### Frontend structure
 
 `App.tsx` is the top-level component owning section state and layout. Indexing concerns (config form, status badge, history table) live in `IndexPanel`; search concerns (search bar, sort selector, results, insights) live in `SearchPanel`. Leaf components (`SuggestionBox`, `ResultCard`, `StatusBadge`) are presentational. All HTTP calls are centralized in `api/client.ts`. Shared types live in `types.ts`. Pure utilities (`formatFileSize`, `getFolderPath`, `highlightText`) are extracted to the `utils/*` modules.
-
-### Known limitations
-
-- The indexer targets text-like files and skips non-text/binary files.
-- CLI sorting is expressed inside the query (`sort:...`), not via a separate `--sort` option.
-- Symlink-related behavior may vary by OS permissions (the test suite already marks this as optional on unsupported environments).
 
 ---
 
