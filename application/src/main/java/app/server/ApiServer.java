@@ -58,7 +58,10 @@ public class ApiServer implements AutoCloseable {
 
     public void start() {
         app = Javalin.create(config -> config.plugins.enableCors(cors ->
-                cors.add(rule -> rule.anyHost())
+                cors.add(rule -> {
+                    rule.allowHost("http://localhost:5173");  // Vite dev server
+                    rule.allowHost("http://localhost:4173");  // Vite preview
+                })
         ));
 
         app.exception(IllegalArgumentException.class, (e, ctx) -> {
