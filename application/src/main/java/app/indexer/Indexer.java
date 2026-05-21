@@ -93,7 +93,8 @@ public class Indexer {
      */
     private void runPipeline(IndexingStats stats, Set<Path> paths, Map<Path, LocalDateTime> storedModifiedByPath) {
         int poolSize = Runtime.getRuntime().availableProcessors();
-        BlockingQueue<ExtractedRecord> queue = new LinkedBlockingQueue<>(poolSize * batchSize);
+        int queueCap = Math.min(poolSize * 4, 256);
+        BlockingQueue<ExtractedRecord> queue = new LinkedBlockingQueue<>(queueCap);
 
         if (liveProgress != null) {
             liveProgress.setPhase("crawling");
