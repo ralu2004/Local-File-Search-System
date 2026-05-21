@@ -124,12 +124,16 @@ public class CLI implements Runnable {
             "  ext:<extension>     Filter by extension",
             "  modified:<date>     Filter by date (YYYY-MM-DD)",
             "  size:<n>[b|kb|mb|gb] Filter by file size (default unit: bytes)",
+            "  color:<name>        Filter images by dominant color (red, blue, green, ...)",
+            "  path:<dir>          Filter by path",
+            "  content:<text>      Search within file content only",
             "",
             "Examples:",
             "  search \"getting started\"",
             "  search README.md",
             "  search ext:java",
             "  search size:10mb",
+            "  search color:red",
             "  search \"config ext:json\"",
             "  search \"config ext:json\" --limit 10"
     })
