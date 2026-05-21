@@ -17,6 +17,9 @@ import java.util.List;
  * Strategies are evaluated in order; the first one whose
  * {@link FileProcessingStrategy#supports(FileRecord)} returns {@code true}
  * is used to process the file.
+ * <p>
+ * To support additional file types, construct an {@code Extractor} with a
+ * custom strategy list via {@link #Extractor(List)}.
  */
 public class Extractor {
 
@@ -38,6 +41,16 @@ public class Extractor {
                 new TextFileStrategy(previewLines, maxFileSize, pathFeatureExtractor),
                 new ImageFileStrategy(pathFeatureExtractor)
         );
+    }
+
+    /**
+     * Constructs an {@code Extractor} with a fully custom strategy list.
+     * Strategies are evaluated in registration order.
+     *
+     * @param strategies the ordered list of strategies to use
+     */
+    public Extractor(List<FileProcessingStrategy> strategies) {
+        this.strategies = List.copyOf(strategies);
     }
 
     public ExtractedRecord extractWithPreview(FileRecord record) throws IOException {
