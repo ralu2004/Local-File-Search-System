@@ -96,6 +96,7 @@ public final class SchemaInitializer {
                     FOREIGN KEY (path) REFERENCES files(path) ON DELETE CASCADE
                 );
             """);
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_image_features_dominant_color ON image_features(dominant_color);");
         }
     }
 }
