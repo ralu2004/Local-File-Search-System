@@ -40,7 +40,7 @@ public class ImageFileStrategy implements FileProcessingStrategy {
         BufferedImage image = ImageIO.read(record.path().toFile());
         String dominantColor = image == null ? "unknown" : extractDominantColor(image);
         PathFeatures features = pathFeatureExtractor.extract(record.path());
-        return new ExtractedRecord(record, dominantColor, dominantColor, features, dominantColor);
+        return new ExtractedRecord(record, dominantColor, null, features, dominantColor);
     }
 
     /**
