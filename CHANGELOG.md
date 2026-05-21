@@ -6,6 +6,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-05-21
+
 ### Added
 - Pre-commit hook for checkstyle enforcement
 - CHANGELOG.md to track iteration 3 progress
