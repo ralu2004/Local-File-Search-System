@@ -4,6 +4,8 @@ import type { RankedSearchResult, SortMode } from '../types'
 import { buildHighlightTerms, highlightText } from '../utils/highlight'
 import { formatFileSize, formatModifiedAt, getFileTypeLabel, getFolderPath } from '../utils/format'
 
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'])
+
 type Props = {
   item: RankedSearchResult
   index: number
@@ -18,6 +20,7 @@ export default function ResultCard({ item, index, activeQuery, sortMode, isOpene
   const insights = Array.isArray(item.insights) ? item.insights : []
   const showInsights = sortMode === 'behavior' && insights.length > 0
   const highlightTerms = useMemo(() => buildHighlightTerms(activeQuery), [activeQuery])
+  const isImage = IMAGE_EXTENSIONS.has(result.extension?.toLowerCase() ?? '')
 
   return (
     <article className="result-card">
@@ -58,11 +61,18 @@ export default function ResultCard({ item, index, activeQuery, sortMode, isOpene
           </span>
         </p>
       </div>
-      <pre className="preview-snippet">
-        {highlightTerms.length > 0
-          ? highlightText(result.preview, highlightTerms, `${result.path}-pv`)
-          : result.preview}
-      </pre>
+      {isImage
+        ? <img
+            className="preview-thumbnail"
+            src={`localfile://${result.path.replace(/^file:\/\/\//, '').replace(':', '%3A')}`}
+            alt={result.filename}
+          />
+        : <pre className="preview-snippet">
+            {highlightTerms.length > 0
+              ? highlightText(result.preview, highlightTerms, `${result.path}-pv`)
+              : result.preview}
+          </pre>
+      }
       {showInsights && (
         <ul className="result-insights" aria-label="Behavior ranking insights">
           {insights.map((insight, insightIndex) => (
