@@ -6,6 +6,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Image results no longer silently dropped in frontend due to null preview type guard
+- CLI no longer throws NullPointerException when displaying image search results
+
 ## [3.0.0] - 2026-05-21
 
 ### Added
