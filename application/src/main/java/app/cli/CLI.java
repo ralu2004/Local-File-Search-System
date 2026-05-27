@@ -171,9 +171,11 @@ public class CLI implements Runnable {
                             : "—";
                     System.out.println(" " + result.filename() + "  [" + result.extension() + "]  Modified: " + result.modifiedAt().toLocalDate() + "  Size: " + sizeStr);
                     System.out.println(" Path: " + result.path());
-                    System.out.println(" Preview:");
-                    for (String line : result.preview().split(System.lineSeparator())) {
-                        System.out.println("   " + line);
+                    if (result.preview() != null) {
+                        System.out.println(" Preview:");
+                        for (String line : result.preview().split(System.lineSeparator())) {
+                            System.out.println("   " + line);
+                        }
                     }
                     if (!rankedResult.insights().isEmpty()) {
                         System.out.println(" Insights:");
