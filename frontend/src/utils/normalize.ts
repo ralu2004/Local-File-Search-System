@@ -11,7 +11,7 @@ function isSearchResult(value: unknown): value is SearchResult {
     typeof candidate.path === 'string' &&
     typeof candidate.filename === 'string' &&
     typeof candidate.extension === 'string' &&
-    typeof candidate.preview === 'string' &&
+    (typeof candidate.preview === 'string' || candidate.preview === null) &&
     isModifiedAt(candidate.modifiedAt)
   )
 }
